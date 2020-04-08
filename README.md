@@ -7,4 +7,4 @@ as described by Karras [here](https://devblogs.nvidia.com/wp-content/uploads/201
 One quality of LBVH trees is that they can be built very quickly.
 This makes them an ideal choice for real time ray tracing.
 
-You can 
+As a single header library, you can easily integrate this into a ray tracing project and speed up your BVH build times!
