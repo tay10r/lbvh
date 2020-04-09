@@ -2,6 +2,8 @@
 
 #include "models/model.h"
 
+#include "fake_thread_pool.h"
+
 #include <chrono>
 
 #include <cstdio>
@@ -11,6 +13,79 @@
 namespace {
 
 using namespace lbvh;
+
+//! \brief Calculates the volume of a bounding box.
+//! This is used to compare the volume of bounding
+//! boxes, between the parent and sub nodes.
+float volume_of(const aabb<float>& box) noexcept {
+  auto size = detail::size_of(box);
+  return size.x * size.y * size.z;
+}
+
+//! \brief This function traverses the box and ensures that every
+//! sub node has a box volume that's less than its parent.
+//!
+//! \param bvh The bvh to check.
+//!
+//! \param errors_fatal Whether or not the function should exit
+//! at the first occurence of an error.
+//!
+//! \param index The index of the node to check. Since this is
+//! a recursive function, this parameter is only set on recursive calls.
+int check_bvh_volumes(const bvh<float>& bvh, int errors_fatal, size_type index = 0) {
+
+  const auto& node = bvh.at(index);
+
+  auto parent_volume = volume_of(node.box);
+
+  int errors = 0;
+
+  if (!node.left_is_leaf()) {
+    auto left_volume = volume_of(bvh.at(node.left).box);
+    if (parent_volume < left_volume) {
+      std::printf("Parent node %lu volume is less than left sub node %u\n", index, node.left);
+      std::printf("  Parent node volume : %8.04f\n", parent_volume);
+      std::printf("  Sub node volume    : %8.04f\n", left_volume);
+      errors++;
+    }
+  }
+
+  if (!node.right_is_leaf()) {
+    auto right_volume = volume_of(bvh.at(node.right).box);
+    if (parent_volume < right_volume) {
+      std::printf("Parent node %lu volume is less than right sub node %u\n", index, node.right);
+      std::printf("  Parent node volume : %8.04f\n", parent_volume);
+      std::printf("  Sub node volume    : %8.04f\n", right_volume);
+      errors++;
+    }
+  }
+
+  if (errors && errors_fatal) {
+    return EXIT_FAILURE;
+  }
+
+  int exit_code = errors ? EXIT_FAILURE : EXIT_SUCCESS;
+
+  if (!node.left_is_leaf()) {
+    int ret = check_bvh_volumes(bvh, errors_fatal, node.left);
+    if (ret != EXIT_SUCCESS) {
+      if (errors_fatal) {
+        return ret;
+      } else {
+        exit_code = ret;
+      }
+    }
+  }
+
+  if (!node.right_is_leaf()) {
+    auto ret = check_bvh_volumes(bvh, errors_fatal, node.right);
+    if (ret != EXIT_SUCCESS) {
+      exit_code = ret;
+    }
+  }
+
+  return exit_code;
+}
 
 //! \brief This function validates the BVH that was built,
 //! ensuring that all leafs get referenced once and all nodes
@@ -85,7 +160,11 @@ int check_bvh(const bvh<float>& bvh, int errors_fatal) {
     }
   }
 
-  return errors ? EXIT_FAILURE : EXIT_SUCCESS;
+  if (errors) {
+    return EXIT_FAILURE;
+  } else {
+    return check_bvh_volumes(bvh, errors_fatal);
+  }
 }
 
 } // namespace
@@ -121,7 +200,17 @@ int main(int argc, char** argv) {
 
   auto face_indices = model.get_face_indices();
 
+#ifndef LBVH_NO_THREADS
+
+  lbvh::fake_task_scheduler fake_scheduler(std::thread::hardware_concurrency());
+
+  lbvh::builder<float, lbvh::fake_task_scheduler> builder(fake_scheduler);
+
+#else // LBVH_NO_THREADS
+
   lbvh::builder<float> builder;
+
+#endif // LBVH_NO_THREADS
 
   auto start = std::chrono::high_resolution_clock::now();
 

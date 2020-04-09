@@ -78,8 +78,13 @@ public:
   //! Issues a new task to be performed.
   //! In this class, the task immediately is called in the current thread.
   template <typename task_type, typename... arg_types>
-  void operator () (task_type task, arg_types... args) {
+  inline void operator () (task_type task, arg_types... args) noexcept {
     task(work_division { 0, 1 }, args...);
+  }
+  //! Indicates the maximum number of threads
+  //! to be invoked at a time.
+  inline size_type max_threads() const noexcept {
+    return 1;
   }
 };
 
@@ -181,8 +186,20 @@ public:
   //! Indicates the number of internal nodes in the BVH.
   inline auto size() const noexcept { return nodes.size(); }
   //! Accesses a reference to a node within the BVH.
-  //! This function does not perform bounds checking.
+  //! An exception is thrown if the index is out of bounds.
+  //! To access nodes without bounds checking, use the [] operator.
+  //!
   //! \param index The index of the node to access.
+  //!
+  //! \return A const-reference to the specified node.
+  inline const node_type& at(size_type index) const {
+    return nodes.at(index);
+  }
+  //! Accesses a reference to a node within the BVH.
+  //! This function does not perform bounds checking.
+  //!
+  //! \param index The index of the node to access.
+  //!
   //! \returns A const-reference to the box type.
   inline const node_type& operator [] (size_type index) const noexcept {
     return nodes[index];
@@ -426,6 +443,33 @@ template <typename int_type>
 inline int_type ceil_div(int_type n, int_type d) {
   return (n / d) + ((n % d) ? 1 : 0);
 }
+
+//! Used for iterating a range of numbers in a for loop.
+struct loop_range final {
+  //! The beginning index of the range.
+  size_type begin;
+  //! The non-inclusive ending index of the range.
+  size_type end;
+  //! Constructs a loop range for an array and work division.
+  //! This makes it easy to divide work required on an array
+  //! into a given work division.
+  //!
+  //! \param div The work division given by the scheduler.
+  //!
+  //! \param array_size The size of the array being worked on.
+  loop_range(const work_division& div, size_type array_size) noexcept {
+
+    auto chunk_size = array_size / div.max;
+
+    begin = chunk_size * div.idx;
+
+    if ((div.idx + 1) == div.max) {
+      end = array_size;
+    } else {
+      end = begin + chunk_size;
+    }
+  }
+};
 
 //! \brief Calculates the Hadamard quotient of two vectors.
 //!
@@ -692,28 +736,74 @@ auto size_of(const aabb<scalar_type>& box) noexcept {
 //! \brief This class is used for calculating the boundaries of a scene.
 //!
 //! \tparam scalar_type The scalar type of the bounding box to get.
-template <typename scalar_type>
-struct scene_bounds final {
+//!
+//! \tparam primitive_type The type of primitive in the scene.
+//!
+//! \tparam aabb_converter Calculates the bounding box of a primitive.
+template <typename scalar_type, typename primitive_type, typename aabb_converter>
+class scene_bounds_kernel final {
+public:
   //! A type definition for a type returned by this class.
   using box_type = aabb<scalar_type>;
-  //! Calculates the bounds of a scene.
+  //! Constructs a new scene bounds kernel.
   //!
-  //! \param primitives the primitives to get the bounding boxes of.
+  //! \param p The primitive of arrays to get the bounds for.
   //!
-  //! \param aabb_converter The primitive to box converter.
+  //! \param c The number of primitives in the array.
   //!
-  //! \return The bounding box for the scene.
-  template <typename primitive, typename aabb_converter>
-  static auto get(const primitive* primitives, size_type count, aabb_converter converter) {
+  //! \param cvt The primitive to bounding box converter.
+  //!
+  //! \param th_count The maximum thread count of the scheduler.
+  //! This is used to allocate an array for each each thread gets its own AABB.
+  scene_bounds_kernel(const primitive_type* p, size_type c, aabb_converter cvt, size_type th_count)
+    : primitives(p), count(c), converter(cvt), thread_boxes(th_count) {
+  }
+  //! Runs the kernel.
+  //! Each thread accumulates its own bounding box
+  //! for the portion of the scene it was assigned.
+  //! When the result is queried, all boxes for each
+  //! of the threads are put into union.
+  //!
+  //! \param div Given by the scheduler to indicate which
+  //! portion of the scene this call should get the bounding box of.
+  void operator () (const work_division& div) noexcept {
+
+    auto range = loop_range(div, count);
+
+    auto box = get_empty_aabb<scalar_type>();
+
+    for (size_type i = range.begin; i < range.end; i++) {
+      box = union_of(box, converter(primitives[i]));
+    }
+
+    thread_boxes[div.idx] = box;
+  }
+  //! After calling the kernel, this function may be used
+  //! to get the bounding box of the scene. Internally, this
+  //! function will get the union of each box calculated by
+  //! each thread issued by the scheduler.
+  //!
+  //! \return The bounding box of the scene.
+  auto get() const noexcept {
 
     auto scene_box = get_empty_aabb<scalar_type>();
 
-    for (size_type i = 0; i < count; i++) {
-      scene_box = union_of(scene_box, converter(primitives[i]));
+    for (const auto& th_box : thread_boxes) {
+      scene_box = union_of(scene_box, th_box);
     }
 
     return scene_box;
   }
+private:
+  //! The array of primitives to get the bounding box of.
+  const primitive_type* primitives;
+  //! The number of primitives in the primitive array.
+  size_type count;
+  //! The primitive to bounding box converter.
+  aabb_converter converter;
+  //! The array of boxes, each box allocated
+  //! for a thread.
+  std::vector<box_type> thread_boxes;
 };
 
 //! \brief Used to get the domain of Morton coordinates,
@@ -793,6 +883,71 @@ protected:
   }
 };
 
+//! This class is used for computing part or all
+//! of a Morton curve. It may be called from multiple threads.
+//!
+//! \tparam scalar_type The type of scalar used in the scene primitives.
+//!
+//! \tparam primitive_type The type of primitive in the scene.
+template <typename scalar_type, typename primitive_type>
+class morton_curve_kernel final {
+public:
+  //! A type definition for a code value.
+  using code_type = typename associated_types<sizeof(scalar_type)>::uint_type;
+  //! A type definition for an entry in the space filling curve.
+  using entry = typename space_filling_curve<code_type>::entry;
+  //! Constructs a new Morton curve kernel.
+  //! \param p The primitive array to generate the values from.
+  //! \param e The entry array to receive the values.
+  //! \param c The number of primitives in the array.
+  constexpr morton_curve_kernel(const primitive_type* p, entry* e, size_type c) noexcept
+    : primitives(p), entries(e), count(c) {}
+  //! Calculates the Morton codes of a certain subset of the scene.
+  //! The amount of work that's done depends on the work division.
+  //!
+  //! \param div Passed by the scheduler to indicate the amount of work to do.
+  //!
+  //! \param scene_box The bounding box for the scene.
+  //!
+  //! \param converter The primitive to bounding box converter.
+  template <typename aabb_converter>
+  void operator () (const work_division& div, const aabb<scalar_type>& scene_box, aabb_converter converter) {
+
+    auto mdomain = scalar_type(morton_domain<sizeof(scalar_type)>::value());
+
+    morton_encoder<sizeof(code_type)> encoder;
+
+    auto scene_size = size_of(scene_box);
+
+    auto range = loop_range(div, count);
+
+    for (size_type i = range.begin; i < range.end; i++) {
+
+      auto center = center_of(converter(primitives[i]));
+
+      // Normalize to bounded interval: 0 < x < 1
+
+      auto normalized_center = hadamard_division((center - scene_box.min), scene_size);
+
+      // Convert to point in "Morton space"
+
+      auto morton_center = normalized_center * mdomain;
+
+      auto code = encoder(morton_center.x, morton_center.y, morton_center.z);
+
+      entries[i] = entry { code, i };
+    }
+  }
+private:
+  //! The primitives the curve is being generated from.
+  const primitive_type* primitives;
+  //! The entries to receive the calculated values.
+  entry* entries;
+  //! The number of primitives in the scene.
+  //! This is also the number of entries.
+  size_type count;
+};
+
 //! \brief This class is used for generating Morton curves.
 //!
 //! \tparam scalar_type The type for the 3D points
@@ -826,33 +981,21 @@ public:
   template <typename primitive, typename aabb_converter>
   curve_type operator () (const primitive* primitives, size_type count, aabb_converter converter) {
 
-    using entry = typename curve_type::entry;
     using entry_vec = typename curve_type::entry_vec;
+
+    using scene_bounds_kernel_type = scene_bounds_kernel<scalar_type, primitive, aabb_converter>;
 
     entry_vec entries(count);
 
-    auto scene_size = size_of(scene_bounds<scalar_type>::get(primitives, count, converter));
+    scene_bounds_kernel_type scene_bounds_kern(primitives, count, converter, scheduler.max_threads());
 
-    auto mdomain = scalar_type(morton_domain<sizeof(scalar_type)>::value());
+    scheduler(scene_bounds_kern);
 
-    morton_encoder<sizeof(code_type)> encoder;
+    auto scene_box = scene_bounds_kern.get();
 
-    for (size_type i = 0; i < count; i++) {
+    morton_curve_kernel<scalar_type, primitive> kernel(primitives, entries.data(), count);
 
-      auto center = center_of(converter(primitives[i]));
-
-      // Normalize to bounded interval: 0 < x < 1
-
-      auto normalized_center = hadamard_division(center, scene_size);
-
-      // Convert to point in "Morton space"
-
-      auto morton_center = normalized_center * mdomain;
-
-      auto code = encoder(morton_center.x, morton_center.y, morton_center.z);
-
-      entries[i] = entry { code, i };
-    }
+    scheduler(kernel, scene_box, converter);
 
     return curve_type(std::move(entries));
   }
@@ -990,33 +1133,53 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
   };
 }
 
-template <typename code_type>
-auto build_nodes(const space_filling_curve<code_type>& curve) {
+//! \brief Used for building the BVH nodes.
+//! Can be called by the scheduler from many threads.
+//!
+//! \tparam code_type The type of code contained by the space filling curve.
+//!
+//! \tparam scalar_type The scalar type used by the node boxes.
+template <typename code_type, typename scalar_type>
+class builder_kernel final {
+public:
+  //! A type definition for a space filling curve.
+  using curve_type = space_filling_curve<code_type>;
+  //! A type definition for a node type.
+  using node_type = node<scalar_type>;
+  //! Constructs a new builder kernel.
+  //! \param c The curve containing the codes to build the nodes with.
+  //! \param n The allocated node array to put the node data into.
+  constexpr builder_kernel(const curve_type& c, node_type* n) noexcept
+    : curve(c), nodes(n) {}
+  //! Calls the kernel to build a certain portion of the BVH nodes.
+  //! \param div The division of work this function call is responsible for.
+  void operator () (const work_division& div) noexcept {
 
-  using float_type = typename associated_types<sizeof(code_type)>::float_type;
+    using index_type = typename node_type::index_type;
 
-  using node_type = node<float_type>;
+    auto range = loop_range(div, curve.size() - 1);
 
-  using index_type = typename associated_types<sizeof(float_type)>::uint_type;
+    for (auto i = range.begin; i < range.end; i++) {
 
-  std::vector<node_type> node_vec(curve.size() -1 );
+      auto div = divide_node(curve, i);
 
-  for (size_type i = 0; i < (curve.size() - 1); i++) {
+      auto l_is_leaf = (div.min() == (div.split + 0));
+      auto r_is_leaf = (div.max() == (div.split + 1));
 
-    auto div = divide_node(curve, i);
+      auto l_mask = l_is_leaf ? highest_bit<index_type>() : 0;
+      auto r_mask = r_is_leaf ? highest_bit<index_type>() : 0;
 
-    auto l_is_leaf = (div.min() == (div.split + 0));
-    auto r_is_leaf = (div.max() == (div.split + 1));
-
-    auto l_mask = l_is_leaf ? highest_bit<index_type>() : 0;
-    auto r_mask = r_is_leaf ? highest_bit<index_type>() : 0;
-
-    node_vec[i].left  = (div.split + 0) | l_mask;
-    node_vec[i].right = (div.split + 1) | r_mask;
+      nodes[i].left  = (div.split + 0) | l_mask;
+      nodes[i].right = (div.split + 1) | r_mask;
+    }
   }
-
-  return node_vec;
-}
+private:
+  //! This is the space filling curve used to determine
+  //! the range and split of each node that this kernel will build.
+  const curve_type& curve;
+  //! A pointer to the node array being constructed.
+  node_type* nodes;
+};
 
 } // namespace detail
 
@@ -1028,17 +1191,25 @@ template <typename scalar_type, typename task_scheduler>
 template <typename primitive, typename aabb_converter>
 auto builder<scalar_type, task_scheduler>::operator () (const primitive* primitives, size_type count, aabb_converter converter) -> bvh_type {
 
-  detail::morton_curve_builder<scalar_type, task_scheduler> curve_builder(scheduler);
+  using node_type = node<scalar_type>;
+
+  using curve_builder_type = detail::morton_curve_builder<scalar_type, task_scheduler>;
+
+  curve_builder_type curve_builder(scheduler);
 
   auto curve = curve_builder(primitives, count, converter);
 
   curve.sort();
 
-  auto nodes = detail::build_nodes(curve);
+  std::vector<node_type> node_vec(curve.size() - 1);
 
-  fit_boxes(nodes, primitives, converter);
+  detail::builder_kernel builder_kernel(curve, node_vec.data());
 
-  return bvh_type(std::move(nodes));
+  scheduler(builder_kernel);
+
+  fit_boxes(node_vec, primitives, converter);
+
+  return bvh_type(std::move(node_vec));
 };
 
 template <typename scalar_type, typename task_scheduler>
