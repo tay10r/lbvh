@@ -45,6 +45,7 @@
 
 #if (__cplusplus >= 201703L) && !(defined LBVH_NO_THREADS)
 #include <execution>
+#include <thread>
 #endif
 
 #include <cmath>
@@ -73,7 +74,7 @@ struct work_division final {
 //! only the current thread for work. It's
 //! a placeholder if the user doesn't specifier
 //! their own thread pool library.
-class sync_task_scheduler final {
+class single_thread_scheduler final {
 public:
   //! Issues a new task to be performed.
   //! In this class, the task immediately is called in the current thread.
@@ -87,6 +88,70 @@ public:
     return 1;
   }
 };
+
+#ifndef LBVH_NO_THREADS
+
+//! \brief This class is used to schedule
+//! tasks to be run on several threads. It
+//! is not a full-fledged thread pool, as would
+//! be desired by real time rendering projects.
+//!
+//! However, it does improve the performance of
+//! the library substantially if it is used.
+//!
+//! The only reason this thread scheduler is considered
+//! to be "naive" is because it creates and destroys threads
+//! at each call. Ideally, the threads would be in a thread pool.
+class naive_thread_scheduler final {
+  //! The maximum number of threads to run.
+  size_type max_thread_count;
+public:
+  //! Constructs a new fake task scheduler.
+  //! \param max_threads The maximum number of threads to run.
+  naive_thread_scheduler(size_type max_threads_ = std::thread::hardware_concurrency())
+    : max_thread_count(max_threads_ ? max_threads_ : 1) { }
+  //! Schedules a new task to be completed.
+  //! \tparam task_type The type of the task functor.
+  //! \tparam arg_types The arguments to pass to the thread.
+  template <typename task_type, typename... arg_types>
+  void operator () (task_type task, arg_types... args) {
+
+    std::vector<std::thread> threads;
+
+    for (size_type i = 0; i < max_thread_count - 1; i++) {
+
+      work_division div { i, max_thread_count };
+
+      threads.emplace_back(task, div, args...);
+    }
+
+    task(work_division { max_thread_count - 1, max_thread_count }, args...);
+
+    for (auto& th : threads) {
+      th.join();
+    }
+  }
+  //! Indicates to the library the maximum number of threads
+  //! that may be invoked at a time. This is useful for determining
+  //! how much memory to allocate for some functions.
+  //!
+  //! \return The max number of threads that may be invoked at a time.
+  inline size_type max_threads() const noexcept {
+    return max_thread_count;
+  }
+};
+
+//! A type definition that uses the
+//! naive thread scheduler.
+using default_scheduler = naive_thread_scheduler;
+
+#else // LBVH_NO_THREADS
+
+//! A type definition that uses the
+//! single thread scheduler.
+using default_scheduler = single_thread_scheduler;
+
+#endif // LBVH_NO_THREADS
 
 //! \brief Calculates the highest bit for an integer type.
 //!
@@ -216,7 +281,10 @@ private:
 //! object that converts primitives to bounding boxes.
 //!
 //! \tparam scalar_type The scalar type to use for the box vectors.
-template <typename scalar_type, typename task_scheduler = sync_task_scheduler>
+//!
+//! \tparam task_scheduler The scheduler type to use for construction tasks.
+//! By default, this is the type of scheduler provided by the library.
+template <typename scalar_type, typename task_scheduler = default_scheduler>
 class builder final {
   //! Is passed the various work items during BVH construction.
   task_scheduler scheduler;
