@@ -1593,7 +1593,7 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
     }
   }
 
-  auto gamma = i + (s * d) + min(d, 0);
+  auto gamma = i + (s * d) + min(d, delta_type(0));
 
   return node_division {
     size_type(i),

@@ -20,6 +20,8 @@ endif
 
 examples += examples/minimal
 
+VPATH += third-party
+
 .PHONY: all
 all: lbvh_test $(examples)
 
@@ -32,14 +34,17 @@ examples/minimal: examples/minimal.cpp lbvh.h
 examples/%: examples/%.cpp lbvh.h
 	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) $< -o $@ $(LDLIBS)
 
-lbvh_test: lbvh_test.o models/tiny_obj_loader.o
+lbvh_test: lbvh_test.o tiny_obj_loader.o stb_image_write.o
 	$(CXX) $^ -o $@ $(LDLIBS)
 
-lbvh_test.o: lbvh_test.cpp lbvh.h models/model.h models/tiny_obj_loader.h
+lbvh_test.o: lbvh_test.cpp lbvh.h models/model.h tiny_obj_loader.h
 	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) -c $< -o $@
 
-models/tiny_obj_loader.o: models/tiny_obj_loader.cc models/tiny_obj_loader.h
+tiny_obj_loader.o: tiny_obj_loader.cc tiny_obj_loader.h
 	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) -c $< -o $@
+
+stb_image_write.o: stb_image_write.c stb_image_write.h
+	$(CC) $(CFLAGS) $($(CC)_CFLGAS) -c $< -o $@
 
 .PHONY: clean
 clean:

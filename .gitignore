@@ -2,5 +2,6 @@ lbvh_test
 examples/minimal
 config.mk
 *.ppm
+*.png
 *.o
 build

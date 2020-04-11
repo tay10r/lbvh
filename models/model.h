@@ -2,7 +2,7 @@
 
 #include <lbvh.h>
 
-#include "tiny_obj_loader.h"
+#include "third-party/tiny_obj_loader.h"
 
 namespace lbvh {
 
@@ -66,33 +66,33 @@ public:
         triangle_type t {
           {
             {
-              attrib.vertices[(v[0] * 3) + 0],
-              attrib.vertices[(v[0] * 3) + 1],
-              attrib.vertices[(v[0] * 3) + 2]
+              scalar_type(attrib.vertices[(v[0] * 3) + 0]),
+              scalar_type(attrib.vertices[(v[0] * 3) + 1]),
+              scalar_type(attrib.vertices[(v[0] * 3) + 2]),
             },
             {
-              attrib.vertices[(v[1] * 3) + 0],
-              attrib.vertices[(v[1] * 3) + 1],
-              attrib.vertices[(v[1] * 3) + 2]
+              scalar_type(attrib.vertices[(v[1] * 3) + 0]),
+              scalar_type(attrib.vertices[(v[1] * 3) + 1]),
+              scalar_type(attrib.vertices[(v[1] * 3) + 2])
             },
             {
-              attrib.vertices[(v[2] * 3) + 0],
-              attrib.vertices[(v[2] * 3) + 1],
-              attrib.vertices[(v[2] * 3) + 2]
+              scalar_type(attrib.vertices[(v[2] * 3) + 0]),
+              scalar_type(attrib.vertices[(v[2] * 3) + 1]),
+              scalar_type(attrib.vertices[(v[2] * 3) + 2])
             }
           },
           {
             {
-              attrib.texcoords[(vt[0] * 2) + 0],
-              attrib.texcoords[(vt[0] * 2) + 1]
+              scalar_type(attrib.texcoords[(vt[0] * 2) + 0]),
+              scalar_type(attrib.texcoords[(vt[0] * 2) + 1])
             },
             {
-              attrib.texcoords[(vt[1] * 2) + 0],
-              attrib.texcoords[(vt[1] * 2) + 1]
+              scalar_type(attrib.texcoords[(vt[1] * 2) + 0]),
+              scalar_type(attrib.texcoords[(vt[1] * 2) + 1])
             },
             {
-              attrib.texcoords[(vt[2] * 2) + 0],
-              attrib.texcoords[(vt[2] * 2) + 1]
+              scalar_type(attrib.texcoords[(vt[2] * 2) + 0]),
+              scalar_type(attrib.texcoords[(vt[2] * 2) + 1])
             }
           }
         };
@@ -191,7 +191,7 @@ public:
     }
 
     auto t = dot(v0v2, qvec) * inv_det;
-    if (t < std::numeric_limits<float>::epsilon()) {
+    if (t < std::numeric_limits<scalar_type>::epsilon()) {
       return intersection_type{};
     }
 
