@@ -4,8 +4,10 @@ CXXFLAGS := -Wall -Wextra -Werror -Wfatal-errors
 CXXFLAGS := $(CXXFLAGS) -std=c++17
 CXXFLAGS := $(CXXFLAGS) -I .
 
+clang++_CXXFLAGS := -Weverything -Wno-c++98-compat
+
 ifndef LBVH_DEBUG
-CXXFLAGS := $(CXXFLAGS) -O3 -march=native
+CXXFLAGS := $(CXXFLAGS) -O3 -march=native -ffast-math
 else
 CXXFLAGS := $(CXXFLAGS) -g
 endif
@@ -28,11 +30,17 @@ test: lbvh_test
 examples/minimal: examples/minimal.cpp lbvh.h
 
 examples/%: examples/%.cpp lbvh.h
-	$(CXX) $(CXXFLAGS) $< -o $@ $(LDLIBS)
+	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) $< -o $@ $(LDLIBS)
 
-lbvh_test: lbvh_test.cpp lbvh.h
-	$(CXX) $(CXXFLAGS) $< models/tiny_obj_loader.cc -o $@ $(LDLIBS)
+lbvh_test: lbvh_test.o models/tiny_obj_loader.o
+	$(CXX) $^ -o $@ $(LDLIBS)
+
+lbvh_test.o: lbvh_test.cpp lbvh.h models/model.h models/tiny_obj_loader.h
+	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) -c $< -o $@
+
+models/tiny_obj_loader.o: models/tiny_obj_loader.cc models/tiny_obj_loader.h
+	$(CXX) $(CXXFLAGS) $($(CXX)_CXXFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:
-	$(RM) lbvh_test $(examples)
+	$(RM) lbvh_test $(examples) *.o models/*.o

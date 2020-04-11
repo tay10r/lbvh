@@ -1,8 +1,7 @@
 #include <lbvh.h>
 
-#include <fstream>
-
 #include <cmath>
+#include <cstdio>
 
 #ifndef M_PI
 #define M_PI 3.1415f
@@ -28,9 +27,9 @@ int main() {
   // This is the scene we want to build
   // a BVH for, just three spheres.
   sphere spheres[3] {
-    { 2, {  5,  2, -30 } },
-    { 5, { 12, -6, -90 } },
-    { 6, { 25,  1, -50 } }
+    { 1, {  5,  1, -5 } },
+    { 1, {  0,  2, -5 } },
+    { 1, { -5,  1, -5 } }
   };
 
   // This is the lamba function we'll be
@@ -85,7 +84,7 @@ int main() {
     // that's already in lbvh.h, to avoid
     // writing some extra code.
 
-    using namespace lbvh::detail;
+    using namespace lbvh::math;
 
     lbvh::vec3<float> s_pos {
       s.pos[0],
@@ -136,7 +135,9 @@ int main() {
   constexpr lbvh::size_type w = 1920;
   constexpr lbvh::size_type h = 1080;
 
-  std::vector<unsigned char> image_buf(w * h * 3);
+  using channel_type = unsigned char;
+
+  std::vector<channel_type> image_buf(w * h * 3);
 
   auto aspect_ratio = float(w) / h;
 
@@ -155,14 +156,17 @@ int main() {
         -1
       };
 
-      lbvh::ray<float> r({ 0, 0, 5 }, ray_dir);
+      lbvh::ray<float> r {
+        { 0, 0, 5 },
+        ray_dir
+      };
 
       auto isect = traverser(r, intersect_sphere);
       if (isect) {
         auto offset = ((y * w) + x) * 3;
-        image_buf[offset + 0] = isect.uv.x * 255;
-        image_buf[offset + 1] = isect.uv.y * 255;
-        image_buf[offset + 2] = 0;
+        image_buf[offset + 0] = channel_type(isect.uv.x * 255);
+        image_buf[offset + 1] = channel_type(isect.uv.y * 255);
+        image_buf[offset + 2] = channel_type(1 - isect.uv.x - isect.uv.y) * 255;
       }
     }
   }
@@ -170,14 +174,13 @@ int main() {
   // We'll write the image to a file so
   // that we can see the result.
 
-  std::ofstream file("result.ppm");
+  FILE* file = std::fopen("result.ppm", "wr");
 
-  file << "P6" << std::endl;
-  file << w << std::endl;
-  file << h << std::endl;
-  file << "255" << std::endl;
+  std::fprintf(file, "P6\n%lu\n%lu\n255\n", w, h);
 
-  file.write((const char*) image_buf.data(), image_buf.size());
+  std::fwrite(image_buf.data(), 1, image_buf.size(), file);
+
+  std::fclose(file);
 
   return 0;
 }
