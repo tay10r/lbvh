@@ -917,8 +917,8 @@ inline constexpr scalar_type sign(scalar_type n) noexcept {
 //!
 //! \return The quotient between @p n and @ d, rounded up.
 template <typename int_type>
-inline int_type ceil_div(int_type n, int_type d) {
-  return (n / d) + ((n % d) ? 1 : 0);
+inline constexpr int_type ceil_div(int_type n, int_type d) {
+  return (n + (d - 1)) / d;
 }
 
 //! Used for iterating a range of numbers in a for loop.
@@ -1011,6 +1011,30 @@ struct box_intersection final {
 template <typename scalar_type>
 auto intersect(const aabb<scalar_type>& box, const accel_ray<scalar_type>& accel_r) noexcept {
 
+#ifdef LBVH_ENABLE_SLAB_TEST
+
+  auto tx1 = (box.min.x - accel_r.r.pos.x)*accel_r.rcp_dir.x;
+  auto tx2 = (box.max.x - accel_r.r.pos.x)*accel_r.rcp_dir.x;
+
+  auto tmin = min(tx1, tx2);
+  auto tmax = max(tx1, tx2);
+
+  auto ty1 = (box.min.y - accel_r.r.pos.y)*accel_r.rcp_dir.y;
+  auto ty2 = (box.max.y - accel_r.r.pos.y)*accel_r.rcp_dir.y;
+
+  tmin = max(tmin, min(ty1, ty2));
+  tmax = min(tmax, max(ty1, ty2));
+
+  auto tz1 = (box.min.z - accel_r.r.pos.z)*accel_r.rcp_dir.z;
+  auto tz2 = (box.max.z - accel_r.r.pos.z)*accel_r.rcp_dir.z;
+
+  tmin = max(tmin, min(tz1, tz2));
+  tmax = min(tmax, max(tz1, tz2));
+
+  return box_intersection<scalar_type> { tmin, tmax };
+
+#else // LBVH_ENABLE_SLAB_TEST
+
   scalar_type bounds[6] {
     box.min.x,
     box.min.y,
@@ -1020,22 +1044,26 @@ auto intersect(const aabb<scalar_type>& box, const accel_ray<scalar_type>& accel
     box.max.z
   };
 
-  scalar_type t_near[3] {
+  // t near
+  scalar_type tn[3] {
     (bounds[accel_r.octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
     (bounds[accel_r.octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
     (bounds[accel_r.octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z
   };
 
-  scalar_type t_far[3] {
+  // t far
+  scalar_type tf[3] {
     (bounds[accel_r.inv_octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
     (bounds[accel_r.inv_octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
     (bounds[accel_r.inv_octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z
   };
 
   return box_intersection<scalar_type> {
-    max(max(t_near[0], t_near[1]), t_near[2]),
-    min(min(t_far[0], t_far[1]), t_far[2]),
+    max(max(tn[0], tn[1]), tn[2]),
+    min(min(tf[0], tf[1]), tf[2]),
   };
+
+#endif // LBVH_ENABLE_SLAB_TEST
 }
 
 //! \brief This class represents a space filling curve.

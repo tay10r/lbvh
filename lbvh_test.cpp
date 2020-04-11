@@ -1,7 +1,5 @@
 #include <lbvh.h>
 
-#include "models/model.h"
-
 #include "third-party/stb_image_write.h"
 
 #include <chrono>
@@ -24,6 +22,222 @@ inline constexpr size_type image_width() noexcept {
 inline constexpr size_type image_height() noexcept {
   return 720;
 }
+
+//! Used for getting traits from type.
+template <typename scalar_type>
+struct type_traits final {};
+
+template <>
+struct type_traits<float> {
+  static constexpr const char* image_name() noexcept {
+    return "test-result-image-float.png";
+  }
+  static constexpr const char* scene_path() noexcept {
+    return "simplified-model-float.bin";
+  }
+  static constexpr const char* name() noexcept {
+    return "float";
+  }
+};
+
+template <>
+struct type_traits<double> {
+  static constexpr const char* image_name() noexcept {
+    return "test-result-image-double.png";
+  }
+  static constexpr const char* scene_path() noexcept {
+    return "simplified-model-double.bin";
+  }
+  static constexpr const char* name() noexcept {
+    return "double";
+  }
+};
+
+//! Represents a 3D triangle from an .obj model.
+//!
+//! \tparam scalar_type The floating point type to represent the triangle with.
+template <typename scalar_type>
+struct triangle final {
+  //! The triangle position values.
+  lbvh::vec3<scalar_type> pos[3];
+  //! The UV coordinates at each position.
+  lbvh::vec2<scalar_type> uv[3];
+};
+
+//! Used for converting triangles in the model to bounding boxes.
+//!
+//! \tparam scalar_type The scalar type of the bounding box vectors to make.
+template <typename scalar_type>
+class triangle_aabb_converter final {
+public:
+  //! A type definition for a model bouding box.
+  using box_type = lbvh::aabb<scalar_type>;
+  //! A type definition for a triangle.
+  using triangle_type = triangle<scalar_type>;
+  //! Gets a bounding box for a triangle in the model.
+  //!
+  //! \param t The triangle to get the bounding box for.
+  //!
+  //! \return The bounding box for the specified triangle.
+  box_type operator () (const triangle_type& t) const noexcept {
+
+    auto tmp_min = lbvh::math::min(t.pos[0], t.pos[1]);
+    auto tmp_max = lbvh::math::max(t.pos[0], t.pos[1]);
+
+    return box_type {
+      lbvh::math::min(tmp_min, t.pos[2]),
+      lbvh::math::max(tmp_max, t.pos[2])
+    };
+  }
+};
+
+//! Used to detect intersections between rays and triangles.
+//!
+//! \tparam scalar_type The scalar type of the triangle vector components.
+template <typename scalar_type>
+class triangle_intersector final {
+public:
+  //! A type definition for a 2D vector.
+  using vec2_type = lbvh::vec2<scalar_type>;
+  //! A type definition for a triangle.
+  using triangle_type = triangle<scalar_type>;
+  //! A type definition for an intersection.
+  using intersection_type = lbvh::intersection<scalar_type>;
+  //! A type definition for a ray.
+  using ray_type = lbvh::ray<scalar_type>;
+  //! Detects intersection between a ray and the triangle.
+  intersection_type operator () (const triangle<scalar_type>& tri, const ray_type& r) const noexcept {
+
+    using namespace lbvh::math;
+
+    // Basic Möller and Trumbore algorithm
+
+    auto v0v1 = tri.pos[1] - tri.pos[0];
+    auto v0v2 = tri.pos[2] - tri.pos[0];
+
+    auto pvec = cross(r.dir, v0v2);
+
+    auto det = dot(v0v1, pvec);
+
+    if (std::fabs(det) < std::numeric_limits<scalar_type>::epsilon()) {
+      return intersection_type{};
+    }
+
+    auto inv_det = scalar_type(1) / det;
+
+    auto tvec = r.pos - tri.pos[0];
+
+    auto u = dot(tvec, pvec) * inv_det;
+
+    if ((u < 0) || (u > 1)) {
+      return intersection_type{};
+    }
+
+    auto qvec = cross(tvec, v0v1);
+
+    auto v = dot(r.dir, qvec) * inv_det;
+
+    if ((v < 0) || (u + v) > 1) {
+      return intersection_type{};
+    }
+
+    auto t = dot(v0v2, qvec) * inv_det;
+    if (t < std::numeric_limits<scalar_type>::epsilon()) {
+      return intersection_type{};
+    }
+
+    // At this point, we know we have a hit.
+    // We just need to calculate the UV coordinates.
+
+    vec2_type uv = (tri.uv[0] * (scalar_type(1.0) - u - v)) + (tri.uv[1] * u) + (tri.uv[2] * v);
+
+    return intersection_type {
+      t, { 0, 0, 1 }, { uv.x, uv.y }, 0
+    };
+  }
+};
+
+//! A simplified scene model.
+//! Internally is a flat array of triangles.
+//!
+//! \tparam scalar_type The scalar type of the triangle data.
+template <typename scalar_type>
+class scene final {
+  //! A type definition for triangles.
+  using triangle_type = triangle<scalar_type>;
+  //! The triangles of the scene.
+  std::vector<triangle_type> triangles;
+public:
+  //! Gets the number of scalar values per triangle.
+  static constexpr size_type scalars_per_triangle() noexcept {
+    // 3 3D vectors + 3 2D vectors
+    return (3 * 3) + (3 * 2);
+  }
+  //! Accesses the triangle data.
+  const auto* data() const noexcept {
+    return triangles.data();
+  }
+  //! Gets the number of triangles in the scene.
+  size_type size() const noexcept {
+    return triangles.size();
+  }
+  //! Opens the scene from a file.
+  //! The file name is based on the scalar type.
+  //!
+  //! \return True on success, false on failure.
+  bool open() {
+
+    auto* file = std::fopen(type_traits<scalar_type>::scene_path(), "rb");
+    if (!file) {
+      return false;
+    }
+
+    auto size = get_file_size(file);
+    if (size < 0) {
+      std::fclose(file);
+      return false;
+    }
+
+    // Read triangle data
+
+    constexpr size_type scalars_per_triangle = 15;
+
+    constexpr size_type bytes_per_triangle = scalars_per_triangle * sizeof(scalar_type);
+
+    static_assert(sizeof(triangle<scalar_type>) == (bytes_per_triangle), "Triangle structure not compatible");
+
+    auto triangle_count = size / bytes_per_triangle;
+
+    triangles.resize(triangle_count);
+
+    void* data_ptr = triangles.data();
+
+    auto read_count = std::fread(data_ptr, bytes_per_triangle, triangle_count, file);
+
+    std::fclose(file);
+
+    return read_count == triangle_count;
+  }
+protected:
+  //! Gets the size of a file.
+  //!
+  //! \return On success, the size of the file.
+  //! On failure, a negative number.
+  long int get_file_size(FILE* file) {
+
+    if (std::fseek(file, 0L, SEEK_END) != 0) {
+      return -1L;
+    }
+
+    long int size = std::ftell(file);
+
+    if (std::fseek(file, 0L, SEEK_SET) != 0) {
+      return -1L;
+    }
+
+    return size;
+  }
+};
 
 //! Represents a simple RGB color.
 template <typename scalar_type>
@@ -115,31 +329,16 @@ struct test_results final {
   //! The number of seconds it took to render the BVH.
   double render_time = 0;
   //! The generated image buffer.
-  std::vector<unsigned char> image_buf;
+  std::vector<unsigned char> image_buf = {};
 };
 
-//! Used for getting traits from type.
-template <typename scalar_type>
-struct type_traits final {};
-
-template <>
-struct type_traits<float> {
-  static constexpr const char* image_name() noexcept {
-    return "test-result-image-float.png";
-  }
-  static constexpr const char* name() noexcept {
-    return "float";
-  }
-};
-
-template <>
-struct type_traits<double> {
-  static constexpr const char* image_name() noexcept {
-    return "test-result-image-double.png";
-  }
-  static constexpr const char* name() noexcept {
-    return "double";
-  }
+//! Options on how to run the test.
+struct test_options final {
+  //! Whether or not the test should
+  //! stop at the first error.
+  bool errors_fatal = false;
+  //! Whether or not rendering should be skipped.
+  bool skip_rendering = false;
 };
 
 //! A function object that tests the BVH build
@@ -154,14 +353,14 @@ class test final {
   using bvh_type = lbvh::bvh<scalar_type>;
   //! A type definition for a single bounding box.
   using box_type = lbvh::aabb<scalar_type>;
-  //! The type used for the model that the BVH is being built for.
-  using model_type = lbvh::model<scalar_type>;
+  //! The type used for the scene that the BVH is being built for.
+  using scene_type = scene<scalar_type>;
   //! A type definition for the primitive used in the test.
-  using primitive_type = lbvh::triangle<scalar_type>;
+  using primitive_type = triangle<scalar_type>;
   //! A type definition for the class that converts primitives to bounding boxes.
-  using converter_type = lbvh::triangle_aabb_converter<scalar_type>;
+  using converter_type = triangle_aabb_converter<scalar_type>;
   //! A type definition for the type used to detect primitive intersections.
-  using intersector_type = lbvh::triangle_intersector<scalar_type>;
+  using intersector_type = triangle_intersector<scalar_type>;
   //! A type definition for a BVH traverser.
   using traverser_type = lbvh::traverser<scalar_type, primitive_type>;
   //! A type definition for aray.
@@ -171,16 +370,18 @@ public:
   //!
   //! \param filename The path to the .obj file to test with.
   //!
+  //! \param opts Test options passed from the command line.
+  //!
   //! \return An instance of @ref test_results containing the relevant data.
-  static auto run(const char* filename) {
+  static auto run(const char* filename, const test_options& opts) {
 
     std::printf("Running test for type '%s'\n", type_traits<scalar_type>::name());
 
-    model_type model;
-
     std::printf("  Loading model '%s'\n", filename);
 
-    if (!model.load(filename)) {
+    scene_type s;
+
+    if (!s.open()) {
       return test_results{};
     }
 
@@ -192,11 +393,13 @@ public:
 
     auto build_start = std::chrono::high_resolution_clock::now();
 
-    auto bvh = builder(model.data(), model.size(), converter);
+    auto bvh = builder(s.data(), s.size(), converter);
 
     auto build_stop = std::chrono::high_resolution_clock::now();
 
     auto build_usecs = std::chrono::duration_cast<std::chrono::microseconds>(build_stop - build_start).count();
+
+    auto build_secs = build_usecs / 1'000'000.0;
 
     std::printf("  Validating BVH\n");
 
@@ -204,14 +407,20 @@ public:
       return test_results{};
     }
 
+    if (opts.skip_rendering) {
+      return test_results {
+        build_secs
+      };
+    }
+
     std::printf("  Rendering test image.\n");
 
-    auto render_result = render(bvh, model);
+    auto render_result = render(bvh, s);
 
     save_image(render_result.first, type_traits<scalar_type>::image_name());
 
     return test_results {
-      build_usecs / 1'000'000.0,
+      build_secs,
       render_result.second,
       std::move(render_result.first)
     };
@@ -241,11 +450,11 @@ protected:
   //! Renders the model with the built BVH.
   //!
   //! \return An image buffer for the rendered image.
-  static auto render(const bvh_type& bvh, const model_type& model) {
+  static auto render(const bvh_type& bvh, const scene_type& s) {
 
     intersector_type intersector;
 
-    traverser_type traverser(bvh, model.data());
+    traverser_type traverser(bvh, s.data());
 
     auto tracer_kern = [&traverser, &intersector](const ray_type& r) {
 
@@ -436,14 +645,24 @@ protected:
 #define MODEL_PATH "models/sponza.obj"
 #endif
 
-int main() {
+int main(int argc, char** argv) {
+
+  test_options options;
+
+  for (int i = 1; i < argc; i++) {
+    if (std::strcmp(argv[i], "--errors-fatal") == 0) {
+      options.errors_fatal = true;
+    } else if (std::strcmp(argv[i], "--skip-rendering") == 0) {
+      options.skip_rendering = true;
+    }
+  }
 
   std::vector<test_results> results;
 
   const char* model_path = MODEL_PATH;
 
-  results.emplace_back(test<float>::run(model_path));
-  results.emplace_back(test<double>::run(model_path));
+  results.emplace_back(test<float>::run(model_path, options));
+  results.emplace_back(test<double>::run(model_path, options));
 
   std::printf("\n");
 
@@ -466,7 +685,7 @@ int main() {
 
   std::printf("\n");
 
-  for (size_type i = 1; i < results.size(); i++) {
+  for (size_type i = 1; (i < results.size()) && !options.skip_rendering; i++) {
 
     long total_diff = 0;
 

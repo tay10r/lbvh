@@ -3,5 +3,8 @@ examples/minimal
 config.mk
 *.ppm
 *.png
+*.bin
 *.o
 build
+perf.data*
+tools/simplify_model
