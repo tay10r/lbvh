@@ -1,6 +1,8 @@
 LBVH
 ====
 
+**Note:** This project is now read-only. It's been deprecated now that an LBVH algorithm is available from [this library](https://github.com/madmann91/bvh).
+
 This project is an implementation of an LBVH build algorithm,
 as described by Karras [here](https://devblogs.nvidia.com/wp-content/uploads/2012/11/karras2012hpg_paper.pdf).
 
