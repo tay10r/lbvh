@@ -9,8 +9,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -30,7 +30,8 @@
 //! See @ref lbvh::builder on building an BVH from this library.
 //! It will require you to write a lambda functor or function object
 //! that computes the bounding box of your primitive. Primitives themselves
-//! are defined all throughout the code as template types, so they can be anything.
+//! are defined all throughout the code as template types, so they can be
+//! anything.
 //!
 //! As an extra bit of functionality, there's also a BVH traverser
 //! class bundled with this header. See @ref lbvh::traverser for details.
@@ -66,7 +67,7 @@ using size_type = std::size_t;
 //! This class is used to associate certain
 //! types with a type size.
 template <size_type type_size>
-struct associated_types final { };
+struct associated_types final {};
 
 //! \brief This class is used to describe
 //! the amount of work that a task is assigned.
@@ -82,18 +83,16 @@ struct work_division final {
 //! a placeholder if the user doesn't specifier
 //! their own thread pool library.
 class single_thread_scheduler final {
-public:
+ public:
   //! Issues a new task to be performed.
   //! In this class, the task immediately is called in the current thread.
   template <typename task_type, typename... arg_types>
-  inline void operator () (task_type task, arg_types... args) noexcept {
-    task(work_division { 0, 1 }, args...);
+  inline void operator()(task_type task, arg_types... args) noexcept {
+    task(work_division{0, 1}, args...);
   }
   //! Indicates the maximum number of threads
   //! to be invoked at a time.
-  inline size_type max_threads() const noexcept {
-    return 1;
-  }
+  inline size_type max_threads() const noexcept { return 1; }
 };
 
 #ifndef LBVH_NO_THREADS
@@ -112,27 +111,27 @@ public:
 class naive_thread_scheduler final {
   //! The maximum number of threads to run.
   size_type max_thread_count;
-public:
+
+ public:
   //! Constructs a new fake task scheduler.
   //! \param max_threads_ The maximum number of threads to run.
-  naive_thread_scheduler(size_type max_threads_ = std::thread::hardware_concurrency())
-    : max_thread_count(max_threads_ ? max_threads_ : 1) { }
+  naive_thread_scheduler(
+      size_type max_threads_ = std::thread::hardware_concurrency())
+      : max_thread_count(max_threads_ ? max_threads_ : 1) {}
   //! Schedules a new task to be completed.
   //! \tparam task_type The type of the task functor.
   //! \tparam arg_types The arguments to pass to the thread.
   template <typename task_type, typename... arg_types>
-  void operator () (task_type task, arg_types... args) {
-
+  void operator()(task_type task, arg_types... args) {
     std::vector<std::thread> threads;
 
     for (size_type i = 0; i < max_thread_count - 1; i++) {
-
-      work_division div { i, max_thread_count };
+      work_division div{i, max_thread_count};
 
       threads.emplace_back(task, div, args...);
     }
 
-    task(work_division { max_thread_count - 1, max_thread_count }, args...);
+    task(work_division{max_thread_count - 1, max_thread_count}, args...);
 
     for (auto& th : threads) {
       th.join();
@@ -143,22 +142,20 @@ public:
   //! how much memory to allocate for some functions.
   //!
   //! \return The max number of threads that may be invoked at a time.
-  inline size_type max_threads() const noexcept {
-    return max_thread_count;
-  }
+  inline size_type max_threads() const noexcept { return max_thread_count; }
 };
 
 //! A type definition that uses the
 //! naive thread scheduler.
 using default_scheduler = naive_thread_scheduler;
 
-#else // LBVH_NO_THREADS
+#else  // LBVH_NO_THREADS
 
 //! A type definition that uses the
 //! single thread scheduler.
 using default_scheduler = single_thread_scheduler;
 
-#endif // LBVH_NO_THREADS
+#endif  // LBVH_NO_THREADS
 
 //! \brief Calculates the highest bit for an integer type.
 //!
@@ -244,7 +241,7 @@ struct alignas(sizeof(scalar_type) * 8) node final {
 //! \tparam float_type The floating point type used for box vectors.
 template <typename float_type>
 class bvh final {
-public:
+ public:
   //! A type definition for BVH nodes.
   using node_type = node<float_type>;
   //! A type definition for a BVH node vector.
@@ -264,28 +261,28 @@ public:
   //! \param index The index of the node to access.
   //!
   //! \return A const-reference to the specified node.
-  inline const node_type& at(size_type index) const {
-    return nodes.at(index);
-  }
+  inline const node_type& at(size_type index) const { return nodes.at(index); }
   //! Accesses a reference to a node within the BVH.
   //! This function does not perform bounds checking.
   //!
   //! \param index The index of the node to access.
   //!
   //! \returns A const-reference to the box type.
-  inline const node_type& operator [] (size_type index) const noexcept {
+  inline const node_type& operator[](size_type index) const noexcept {
     return nodes[index];
   }
-private:
+
+ private:
   //! The internal nodes of the BVH.
   node_vec nodes;
 };
 
 //! \brief This class is used for the constructing of BVHs.
 //! It is meant to be the first class declared by anyone using the library.
-//! It takes a set of primitives, as well as a function object to calculate their bounding boxes,
-//! and generates an LBVH from them. The only function required to be implemented is the function
-//! object that converts primitives to bounding boxes.
+//! It takes a set of primitives, as well as a function object to calculate
+//! their bounding boxes, and generates an LBVH from them. The only function
+//! required to be implemented is the function object that converts primitives
+//! to bounding boxes.
 //!
 //! \tparam scalar_type The scalar type to use for the box vectors.
 //!
@@ -295,7 +292,8 @@ template <typename scalar_type, typename task_scheduler = default_scheduler>
 class builder final {
   //! Is passed the various work items during BVH construction.
   task_scheduler scheduler;
-public:
+
+ public:
   //! A type definition for a BVH.
   using bvh_type = bvh<scalar_type>;
   //! A type definition for a BVH node.
@@ -305,7 +303,7 @@ public:
   //! Constructs a new BVH builder.
   //! \param scheduler_ The task scheduler to distribute the work with.
   builder(task_scheduler scheduler_ = task_scheduler())
-    : scheduler(scheduler_) {}
+      : scheduler(scheduler_) {}
   //! Builds a BVH from an array of primitives.
   //!
   //! \param primitives The array of primitives to build the BVH for.
@@ -319,49 +317,38 @@ public:
   //!
   //! \return A BVH built for the specified primitives.
   template <typename primitive, typename aabb_converter>
-  bvh_type operator () (const primitive* primitives, size_type count, const aabb_converter& converter);
-protected:
+  bvh_type operator()(const primitive* primitives, size_type count,
+                      const aabb_converter& converter);
+
+ protected:
   //! Fits BVH nodes with their appropriate boxes.
   template <typename primitive, typename aabb_converter>
-  void fit_boxes(node_vec& nodes, const primitive* primitives, const aabb_converter& converter);
+  void fit_boxes(node_vec& nodes, const primitive* primitives,
+                 const aabb_converter& converter);
 };
 
 //! \brief This structure contains basic information
-//! regarding a ray intersection with a BVH. It's not
-//! required to be used. Other intersection structures
-//! can be used as long as they implement the '<' comparison
-//! operator (based on distance) and boolean operator (indicates
-//! whether or not a hit occurred.
-template <typename scalar_type>
-struct intersection final {
-  //! A type definition for an index, used for tracking the intersected primitive.
+//! regarding a ray intersection with a BVH. It stores the index of the
+//! primitive that was intersected as well as intersection info given by the
+//! primitive type.
+template <typename scalar_type, typename intersection_info>
+struct intersection_container final {
+  //! A type definition for an index, used for tracking the intersected
+  //! primitive.
   using index = typename associated_types<sizeof(scalar_type)>::uint_type;
-  //! The distance factor between the ray and primitive.
-  scalar_type distance = std::numeric_limits<scalar_type>::infinity();
-  //! The normal at the point of intersection.
-  vec3<scalar_type> normal {};
-  //! The UV coordinates at the point of intersection.
-  vec2<scalar_type> uv {};
-  //! The index of the primitive that the intersection was made with.
-  index primitive = highest_bit<index>();
-  //! Indicates whether or not an intersection was made.
-  //!
-  //! \return True if this intersection has valid intersection data.
-  //! False if it does not and no intersection was made.
-  operator bool () const noexcept {
-    return distance < std::numeric_limits<scalar_type>::infinity();
-  }
-  //! Compares two intersection instances.
-  //!
-  //! \return True if @p a has a distance factor less than @p b.
-  bool operator < (const intersection<scalar_type>& other) const noexcept {
-    return (distance < other.distance);
-  }
-  //! Compares the intersection distance with another distance.
-  //!
-  //! \return True if this intersection is less than @p t.
-  bool operator < (scalar_type t) const noexcept {
-    return distance < t;
+  /// The index of the primitive that was hit.
+  index primitive = std::numeric_limits<index>::max();
+  /// Additional information regarding the intersection.
+  intersection_info info;
+
+  intersection_container() = default;
+
+  intersection_container(index prim, intersection_info&& info_)
+      : primitive(prim), info(std::move(info_)) {}
+
+  /// Indicates whether or not this is a valid intersection.
+  constexpr operator bool() const noexcept {
+    return primitive != std::numeric_limits<index>::max();
   }
 };
 
@@ -412,37 +399,31 @@ struct accel_ray final {
 //! \tparam dimensions The number of dimensions in the vector.
 //!
 //! \tparam count The number of elements per dimension.
-template <typename scalar_type,
-          size_type dimensions,
-          size_type count>
+template <typename scalar_type, size_type dimensions, size_type count>
 struct vec_packet final {
   //! Indicates the total number of scalars in this vector packet.
   static inline constexpr size_type value_count() noexcept {
     return dimensions * count;
   }
   //! Indicates the number of scalars per dimension.
-  static inline constexpr size_type size() noexcept {
-    return count;
-  }
+  static inline constexpr size_type size() noexcept { return count; }
   //! Accesses a pointer to a dimension within the vector packet.
   //!
   //! \param d The index of the dimension to get the values of.
   //!
   //! \return A pointer to the start of the dimension values.
-  inline auto* operator [] (size_type d) noexcept {
-    return &values[d * count];
-  }
+  inline auto* operator[](size_type d) noexcept { return &values[d * count]; }
   //! Accesses a pointer to a dimension within the vector packet.
   //!
   //! \param d The index of the dimension to get the values of.
   //!
   //! \return A pointer to the start of the dimension values.
-  inline const auto* operator [] (size_type d) const noexcept {
+  inline const auto* operator[](size_type d) const noexcept {
     return &values[d * count];
   }
   //! The values of the vector packet.
   //! Dimensions are non-interleaved in this array.
-  scalar_type values[value_count()] {};
+  scalar_type values[value_count()]{};
 };
 
 //! This class is used to store a packet of rays.
@@ -475,32 +456,37 @@ struct ray_packet final {
 //!
 //! \tparam scalar_type The floating point type to use for vector components.
 //!
-//! \tparam primitive_type The type of the primitive being checked for intersection.
+//! \tparam primitive_type The type of the primitive being checked for
+//! intersection.
 //!
 //! \tparam intersection_type The type used for indicating intersections.
-template <typename scalar_type,
-          typename primitive_type,
-          typename intersection_type = intersection<scalar_type>>
+template <typename scalar_type, typename primitive_type, typename intersection_info>
 class traverser final {
   //! A reference to the BVH being traversed.
   const bvh<scalar_type>& bvh_;
   //! The primitives to check for intersection.
   const primitive_type* primitives;
-public:
+
+ public:
+  using intersection = intersection_container<scalar_type, intersection_info>;
+
   //! A type definition for a ray.
   using ray_type = ray<scalar_type>;
   //! Constructs a new traverser instance.
   //! \param b The BVH to be traversed.
   //! \param p The primitives to check for intersection in each box.
-  constexpr traverser(const bvh<scalar_type>& b, const primitive_type* p) noexcept
-    : bvh_(b), primitives(p) {}
-  //! \brief Traverses the BVH, returning the closest intersection that was made.
+  constexpr traverser(const bvh<scalar_type>& b,
+                      const primitive_type* p) noexcept
+      : bvh_(b), primitives(p) {}
+  //! \brief Traverses the BVH, returning the closest intersection that was
+  //! made.
   //!
   //! \tparam intersector_type Defined by the caller as a function object that
-  //! takes a primitive and a ray and returns an instance of @ref intersection_type
-  //! that indicates whether or not a hit was made.
+  //! takes a primitive and a ray and returns an instance of @ref
+  //! intersection_type that indicates whether or not a hit was made.
   template <typename intersector_type>
-  intersection_type operator () (const ray_type& ray, const intersector_type& intersector) const noexcept;
+  intersection operator()(const ray_type& ray,
+                          const intersector_type& intersector) const noexcept;
 };
 
 //! \brief Contains the associated types for 32-bit sizes.
@@ -551,11 +537,7 @@ inline constexpr scalar_type max(scalar_type a, scalar_type b) noexcept {
 template <typename scalar_type>
 auto hadamard_div(const vec3<scalar_type>& a,
                   const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type> {
-    a.x / b.x,
-    a.y / b.y,
-    a.z / b.z
-  };
+  return vec3<scalar_type>{a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
 //! \brief Calculates the Hadamard product of two vectors.
@@ -566,11 +548,7 @@ auto hadamard_div(const vec3<scalar_type>& a,
 template <typename scalar_type>
 auto hadamard_mul(const vec3<scalar_type>& a,
                   const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type> {
-    a.x * b.x,
-    a.y * b.y,
-    a.z * b.z
-  };
+  return vec3<scalar_type>{a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
 //! \brief Calculates the cross product between two 3D vectors.
@@ -579,11 +557,8 @@ auto hadamard_mul(const vec3<scalar_type>& a,
 template <typename scalar_type>
 inline constexpr vec3<scalar_type> cross(const vec3<scalar_type>& a,
                                          const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type> {
-    (a.y * b.z) - (a.z * b.y),
-    (a.z * b.x) - (a.x * b.z),
-    (a.x * b.y) - (a.y * b.x)
-  };
+  return vec3<scalar_type>{(a.y * b.z) - (a.z * b.y), (a.z * b.x) - (a.x * b.z),
+                           (a.x * b.y) - (a.y * b.x)};
 }
 
 //! \brief Calculates the dot product of two 3D vectors.
@@ -606,14 +581,9 @@ inline constexpr scalar_type dot(const vec3<scalar_type>& a,
 //!
 //! \return A vector containing the minimum components between @p a and @p b.
 template <typename scalar_type>
-auto min(const vec3<scalar_type>& a,
-         const vec3<scalar_type>& b) noexcept {
-
-  return vec3<scalar_type> {
-    std::min(a.x, b.x),
-    std::min(a.y, b.y),
-    std::min(a.z, b.z)
-  };
+auto min(const vec3<scalar_type>& a, const vec3<scalar_type>& b) noexcept {
+  return vec3<scalar_type>{std::min(a.x, b.x), std::min(a.y, b.y),
+                           std::min(a.z, b.z)};
 }
 
 //! \brief Calculates the maximum between two vectors.
@@ -623,14 +593,9 @@ auto min(const vec3<scalar_type>& a,
 //!
 //! \return A vector containing the maximum components between @p a and @p b.
 template <typename scalar_type>
-auto max(const vec3<scalar_type>& a,
-         const vec3<scalar_type>& b) noexcept {
-
-  return vec3<scalar_type> {
-    std::max(a.x, b.x),
-    std::max(a.y, b.y),
-    std::max(a.z, b.z)
-  };
+auto max(const vec3<scalar_type>& a, const vec3<scalar_type>& b) noexcept {
+  return vec3<scalar_type>{std::max(a.x, b.x), std::max(a.y, b.y),
+                           std::max(a.z, b.z)};
 }
 
 //! \brief Calculates a vector with reciprocal values of another vector.
@@ -641,11 +606,7 @@ auto max(const vec3<scalar_type>& a,
 //! \return A vector with reciprocal values of @p in.
 template <typename scalar_type>
 auto reciprocal(const vec3<scalar_type>& in) noexcept {
-  return vec3<scalar_type> {
-    1 / in.x,
-    1 / in.y,
-    1 / in.z
-  };
+  return vec3<scalar_type>{1 / in.x, 1 / in.y, 1 / in.z};
 }
 
 //! \brief Calculates the sum of two vectors.
@@ -654,13 +615,9 @@ auto reciprocal(const vec3<scalar_type>& in) noexcept {
 //!
 //! \return The sum of @p a and @p b, as a vector.
 template <typename scalar_type>
-auto operator + (const vec3<scalar_type>& a,
-                 const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type> {
-    a.x + b.x,
-    a.y + b.y,
-    a.z + b.z
-  };
+auto operator+(const vec3<scalar_type>& a,
+               const vec3<scalar_type>& b) noexcept {
+  return vec3<scalar_type>{a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
 //! \brief Calculates the difference between two vectors.
@@ -669,25 +626,17 @@ auto operator + (const vec3<scalar_type>& a,
 //!
 //! \return The difference between @p a and @p b, as a vector.
 template <typename scalar_type>
-auto operator - (const vec3<scalar_type>& a,
-                 const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type> {
-    a.x - b.x,
-    a.y - b.y,
-    a.z - b.z
-  };
+auto operator-(const vec3<scalar_type>& a,
+               const vec3<scalar_type>& b) noexcept {
+  return vec3<scalar_type>{a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
 //! \brief Negates a vector.
 //!
 //! \return The negated result of @p in.
 template <typename scalar_type>
-inline auto operator - (const vec3<scalar_type>& in) noexcept {
-  return vec3<scalar_type> {
-    -in.x,
-    -in.y,
-    -in.z
-  };
+inline auto operator-(const vec3<scalar_type>& in) noexcept {
+  return vec3<scalar_type>{-in.x, -in.y, -in.z};
 }
 
 //! \brief Calculates the product between a vector and a scalar value.
@@ -696,12 +645,8 @@ inline auto operator - (const vec3<scalar_type>& in) noexcept {
 //!
 //! \return The product between @p a and @p b.
 template <typename scalar_type>
-auto operator * (const vec3<scalar_type>& a, scalar_type b) noexcept {
-  return vec3<scalar_type> {
-    a.x * b,
-    a.y * b,
-    a.z * b
-  };
+auto operator*(const vec3<scalar_type>& a, scalar_type b) noexcept {
+  return vec3<scalar_type>{a.x * b, a.y * b, a.z * b};
 }
 
 //! \brief Normalizes a vector.
@@ -710,7 +655,6 @@ auto operator * (const vec3<scalar_type>& a, scalar_type b) noexcept {
 //! \return The normalized result of @p v.
 template <typename scalar_type>
 vec3<scalar_type> normalize(const vec3<scalar_type>& v) noexcept {
-
   using std::sqrt;
 
   auto l_inv = scalar_type(1) / sqrt(dot(v, v));
@@ -722,23 +666,18 @@ vec3<scalar_type> normalize(const vec3<scalar_type>& v) noexcept {
 //!
 //! \return The product of @p a and @p b.
 template <typename scalar_type>
-vec2<scalar_type> operator * (const vec2<scalar_type>& a, scalar_type b) noexcept {
-  return vec2<scalar_type> {
-    a.x * b,
-    a.y * b
-  };
+vec2<scalar_type> operator*(const vec2<scalar_type>& a,
+                            scalar_type b) noexcept {
+  return vec2<scalar_type>{a.x * b, a.y * b};
 }
 
 //! \brief Computes the sum of two 2D vectors.
 //!
 //! \return The sum of @p a and @p b.
 template <typename scalar_type>
-vec2<scalar_type> operator + (const vec2<scalar_type>& a,
-                              const vec2<scalar_type>& b) noexcept {
-  return vec2<scalar_type> {
-    a.x + b.x,
-    a.y + b.y
-  };
+vec2<scalar_type> operator+(const vec2<scalar_type>& a,
+                            const vec2<scalar_type>& b) noexcept {
+  return vec2<scalar_type>{a.x + b.x, a.y + b.y};
 }
 
 //! \brief This structure implements various vector packet operations.
@@ -751,9 +690,7 @@ vec2<scalar_type> operator + (const vec2<scalar_type>& a,
 //! \tparam dimensions The number of dimensions the vectors will have.
 //!
 //! \tparam count The number of elements per dimension for each vector.
-template <typename scalar_type,
-          size_type dimensions,
-          size_type count>
+template <typename scalar_type, size_type dimensions, size_type count>
 struct vec_packet_ops final {
   //! A type definition for a vector packet.
   using vec_packet_type = vec_packet<scalar_type, dimensions, count>;
@@ -764,7 +701,8 @@ struct vec_packet_ops final {
   //! Computes the Hadamard product of two vectors.
   //!
   //! \return The Hadamard product of @p a and @p b.
-  static constexpr auto hadamard_mul(const vec_packet_type& a, const vec_packet_type& b) noexcept {
+  static constexpr auto hadamard_mul(const vec_packet_type& a,
+                                     const vec_packet_type& b) noexcept {
     vec_packet_type out;
     for (size_type i = 0; i < value_count(); i++) {
       out.values[i] = a.values[i] * b.values[i];
@@ -786,7 +724,8 @@ struct vec_packet_ops final {
   //! Subtracts two vectors.
   //!
   //! \return The difference between @p a and @p b.
-  static constexpr auto sub(const vec_packet_type& a, const vec_packet_type& b) noexcept {
+  static constexpr auto sub(const vec_packet_type& a,
+                            const vec_packet_type& b) noexcept {
     vec_packet_type out;
     for (size_type i = 0; i < value_count(); i++) {
       out.values[i] = a.values[i] - b.values[i];
@@ -809,7 +748,8 @@ struct vec_packet_ops final {
 //!
 //! \return The sume of @p a and @p b.
 template <typename scalar_type, size_type dimensions, size_type count>
-constexpr auto operator + (const vec_packet<scalar_type, dimensions, count>& a, scalar_type b) noexcept {
+constexpr auto operator+(const vec_packet<scalar_type, dimensions, count>& a,
+                         scalar_type b) noexcept {
   return vec_packet_ops<scalar_type, dimensions, count>::add(a, b);
 }
 
@@ -817,8 +757,9 @@ constexpr auto operator + (const vec_packet<scalar_type, dimensions, count>& a, 
 //!
 //! \return The difference of @p a and @p b.
 template <typename scalar_type, size_type dimensions, size_type count>
-constexpr auto operator - (const vec_packet<scalar_type, dimensions, count>& a,
-                           const vec_packet<scalar_type, dimensions, count>& b) noexcept {
+constexpr auto operator-(
+    const vec_packet<scalar_type, dimensions, count>& a,
+    const vec_packet<scalar_type, dimensions, count>& b) noexcept {
   return vec_packet_ops<scalar_type, dimensions, count>::sub(a, b);
 }
 
@@ -826,7 +767,8 @@ constexpr auto operator - (const vec_packet<scalar_type, dimensions, count>& a,
 //!
 //! \return The product of @p a and @p b, as a vector packet.
 template <typename scalar_type, size_type dimensions, size_type count>
-constexpr auto operator * (const vec_packet<scalar_type, dimensions, count>& a, scalar_type b) noexcept {
+constexpr auto operator*(const vec_packet<scalar_type, dimensions, count>& a,
+                         scalar_type b) noexcept {
   return vec_packet_ops<scalar_type, dimensions, count>::mul(a, b);
 }
 
@@ -840,7 +782,6 @@ constexpr auto operator * (const vec_packet<scalar_type, dimensions, count>& a, 
 template <typename scalar_type, size_type count>
 constexpr auto hadamard_mul(const vec_packet<scalar_type, 3, count>& a,
                             const vec3<scalar_type>& b) noexcept {
-
   vec_packet<scalar_type, 3, count> out;
 
   for (size_type i = 0; i < count; i++) {
@@ -860,9 +801,8 @@ constexpr auto hadamard_mul(const vec_packet<scalar_type, 3, count>& a,
 //!
 //! \return The difference between @p a and @p b.
 template <typename scalar_type, size_type count>
-constexpr auto operator - (const vec_packet<scalar_type, 3, count>& a,
-                           const vec3<scalar_type>& b) noexcept {
-
+constexpr auto operator-(const vec_packet<scalar_type, 3, count>& a,
+                         const vec3<scalar_type>& b) noexcept {
   vec_packet<scalar_type, 3, count> out;
 
   for (size_type i = 0; i < count; i++) {
@@ -874,7 +814,7 @@ constexpr auto operator - (const vec_packet<scalar_type, 3, count>& a,
   return out;
 }
 
-} // namespace math
+}  // namespace math
 
 //! \brief This namespaces contains implementation details
 //! of the library. It shouldn't be used by the end-user.
@@ -935,7 +875,6 @@ struct loop_range final {
   //!
   //! \param array_size The size of the array being worked on.
   loop_range(const work_division& div, size_type array_size) noexcept {
-
     auto chunk_size = array_size / div.max;
 
     begin = chunk_size * div.idx;
@@ -953,32 +892,20 @@ struct loop_range final {
 //! \param r The ray from which to build the structure from.
 template <typename scalar_type>
 constexpr auto make_accel_ray(const ray<scalar_type>& r) noexcept {
-
   using index_type = typename accel_ray<scalar_type>::index_type;
 
   auto rcp_dir = reciprocal(r.dir);
 
-  index_type octants[3] {
-    (r.dir.x > 0) ? index_type(0) : index_type(3),
-    (r.dir.y > 0) ? index_type(1) : index_type(4),
-    (r.dir.z > 0) ? index_type(2) : index_type(5)
-  };
+  index_type octants[3]{(r.dir.x > 0) ? index_type(0) : index_type(3),
+                        (r.dir.y > 0) ? index_type(1) : index_type(4),
+                        (r.dir.z > 0) ? index_type(2) : index_type(5)};
 
-  return accel_ray<scalar_type> {
-    r,
-    rcp_dir,
-    hadamard_mul(-r.pos, rcp_dir),
-    {
-      octants[0],
-      octants[1],
-      octants[2]
-    },
-    {
-      3 - octants[0],
-      5 - octants[1],
-      7 - octants[2]
-    }
-  };
+  return accel_ray<scalar_type>{
+      r,
+      rcp_dir,
+      hadamard_mul(-r.pos, rcp_dir),
+      {octants[0], octants[1], octants[2]},
+      {3 - octants[0], 5 - octants[1], 7 - octants[2]}};
 }
 
 //! Represents a ray intersection with a box.
@@ -991,13 +918,13 @@ struct box_intersection final {
   //! The maximum distance to intersection.
   scalar_type tmax = 0;
   //! Indicates if this is a valid intersection.
-  inline operator bool () const noexcept {
+  inline operator bool() const noexcept {
     return (tmax >= max(scalar_type(0), tmin));
   }
   //! Compares two box intersections by proximity.
   //!
   //! \return True if this box intersection is closer than @p other.
-  inline bool operator < (const box_intersection& other) const noexcept {
+  inline bool operator<(const box_intersection& other) const noexcept {
     return tmin < other.tmin;
   }
 };
@@ -1009,61 +936,53 @@ struct box_intersection final {
 //! \return A box intersection instance, indicating
 //! if there was a hit or not.
 template <typename scalar_type>
-auto intersect(const aabb<scalar_type>& box, const accel_ray<scalar_type>& accel_r) noexcept {
-
+auto intersect(const aabb<scalar_type>& box,
+               const accel_ray<scalar_type>& accel_r) noexcept {
 #ifdef LBVH_ENABLE_SLAB_TEST
 
-  auto tx1 = (box.min.x - accel_r.r.pos.x)*accel_r.rcp_dir.x;
-  auto tx2 = (box.max.x - accel_r.r.pos.x)*accel_r.rcp_dir.x;
+  auto tx1 = (box.min.x - accel_r.r.pos.x) * accel_r.rcp_dir.x;
+  auto tx2 = (box.max.x - accel_r.r.pos.x) * accel_r.rcp_dir.x;
 
   auto tmin = min(tx1, tx2);
   auto tmax = max(tx1, tx2);
 
-  auto ty1 = (box.min.y - accel_r.r.pos.y)*accel_r.rcp_dir.y;
-  auto ty2 = (box.max.y - accel_r.r.pos.y)*accel_r.rcp_dir.y;
+  auto ty1 = (box.min.y - accel_r.r.pos.y) * accel_r.rcp_dir.y;
+  auto ty2 = (box.max.y - accel_r.r.pos.y) * accel_r.rcp_dir.y;
 
   tmin = max(tmin, min(ty1, ty2));
   tmax = min(tmax, max(ty1, ty2));
 
-  auto tz1 = (box.min.z - accel_r.r.pos.z)*accel_r.rcp_dir.z;
-  auto tz2 = (box.max.z - accel_r.r.pos.z)*accel_r.rcp_dir.z;
+  auto tz1 = (box.min.z - accel_r.r.pos.z) * accel_r.rcp_dir.z;
+  auto tz2 = (box.max.z - accel_r.r.pos.z) * accel_r.rcp_dir.z;
 
   tmin = max(tmin, min(tz1, tz2));
   tmax = min(tmax, max(tz1, tz2));
 
-  return box_intersection<scalar_type> { tmin, tmax };
+  return box_intersection<scalar_type>{tmin, tmax};
 
-#else // LBVH_ENABLE_SLAB_TEST
+#else  // LBVH_ENABLE_SLAB_TEST
 
-  scalar_type bounds[6] {
-    box.min.x,
-    box.min.y,
-    box.min.z,
-    box.max.x,
-    box.max.y,
-    box.max.z
-  };
+  scalar_type bounds[6]{box.min.x, box.min.y, box.min.z,
+                        box.max.x, box.max.y, box.max.z};
 
   // t near
-  scalar_type tn[3] {
-    (bounds[accel_r.octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
-    (bounds[accel_r.octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
-    (bounds[accel_r.octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z
-  };
+  scalar_type tn[3]{
+      (bounds[accel_r.octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
+      (bounds[accel_r.octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
+      (bounds[accel_r.octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z};
 
   // t far
-  scalar_type tf[3] {
-    (bounds[accel_r.inv_octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
-    (bounds[accel_r.inv_octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
-    (bounds[accel_r.inv_octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z
+  scalar_type tf[3]{
+      (bounds[accel_r.inv_octants[0]] * accel_r.rcp_dir.x) + accel_r.inv_pos.x,
+      (bounds[accel_r.inv_octants[1]] * accel_r.rcp_dir.y) + accel_r.inv_pos.y,
+      (bounds[accel_r.inv_octants[2]] * accel_r.rcp_dir.z) + accel_r.inv_pos.z};
+
+  return box_intersection<scalar_type>{
+      max(max(tn[0], tn[1]), tn[2]),
+      min(min(tf[0], tf[1]), tf[2]),
   };
 
-  return box_intersection<scalar_type> {
-    max(max(tn[0], tn[1]), tn[2]),
-    min(min(tf[0], tf[1]), tf[2]),
-  };
-
-#endif // LBVH_ENABLE_SLAB_TEST
+#endif  // LBVH_ENABLE_SLAB_TEST
 }
 
 //! \brief This class represents a space filling curve.
@@ -1071,7 +990,7 @@ auto intersect(const aabb<scalar_type>& box, const accel_ray<scalar_type>& accel
 //! \tparam code_type The type used for units of the curve.
 template <typename code_type>
 class space_filling_curve final {
-public:
+ public:
   //! Represents a single entry within the curve table.
   struct entry final {
     //! Let's make the code and the primitive index the same size
@@ -1087,15 +1006,13 @@ public:
   //! Constructs a space filling curve.
   //! \param entries_ The entries to assign the curve.
   space_filling_curve(entry_vec&& entries_) noexcept
-    : entries(std::move(entries_)) {}
+      : entries(std::move(entries_)) {}
   //! Constructs a curve via move semantics.
   space_filling_curve(space_filling_curve&& other) noexcept
-    : entries(std::move(other.entries)) {}
+      : entries(std::move(other.entries)) {}
   //! Sorts the space filling curve based on the code of each entry.
   void sort() {
-    auto cmp = [](const entry& a, const entry& b) {
-      return a.code < b.code;
-    };
+    auto cmp = [](const entry& a, const entry& b) { return a.code < b.code; };
 #if (__cplusplus >= 201703L) && !(defined LBVH_NO_THREADS)
     std::sort(std::execution::par_unseq, entries.begin(), entries.end(), cmp);
 #else
@@ -1103,18 +1020,17 @@ public:
 #endif
   }
   //! Indicates the number of entries in the space filling curve.
-  inline auto size() const noexcept {
-    return entries.size();
-  }
+  inline auto size() const noexcept { return entries.size(); }
   //! Accesses a specific entry within the space filling curve.
   //! \param index The index of the entry to access.
-  inline const auto& operator [] (size_type index) const noexcept {
+  inline const auto& operator[](size_type index) const noexcept {
     return entries[index];
   }
 
   space_filling_curve(const space_filling_curve&) = delete;
-  space_filling_curve& operator = (const space_filling_curve&) = delete;
-private:
+  space_filling_curve& operator=(const space_filling_curve&) = delete;
+
+ private:
   //! The entries of the space filling curve.
   entry_vec entries;
 };
@@ -1127,7 +1043,8 @@ private:
 //! \param box The box to get the center of.
 //!
 //! \return The center point of the box.
-template <typename scalar_type, typename = std::enable_if_t<std::is_floating_point<scalar_type>::value>>
+template <typename scalar_type, typename = std::enable_if_t<
+                                    std::is_floating_point<scalar_type>::value>>
 auto center_of(const aabb<scalar_type>& box) noexcept {
   return (box.min + box.max) * scalar_type(0.5);
 }
@@ -1140,7 +1057,8 @@ auto center_of(const aabb<scalar_type>& box) noexcept {
 //! \param box The box to get the center point of.
 //!
 //! \return The center point of the box.
-template <typename scalar_type, std::enable_if_t<!std::is_floating_point<scalar_type>::value>>
+template <typename scalar_type,
+          std::enable_if_t<!std::is_floating_point<scalar_type>::value>>
 auto center_of(const aabb<scalar_type>& box) noexcept {
   return (box.min + box.max) / 2;
 }
@@ -1152,18 +1070,12 @@ auto center_of(const aabb<scalar_type>& box) noexcept {
 //! \return An empty box.
 template <typename scalar_type>
 auto get_empty_aabb() noexcept {
-  return aabb<scalar_type> {
-    {
-      std::numeric_limits<scalar_type>::infinity(),
-      std::numeric_limits<scalar_type>::infinity(),
-      std::numeric_limits<scalar_type>::infinity()
-    },
-    {
-      -std::numeric_limits<scalar_type>::infinity(),
-      -std::numeric_limits<scalar_type>::infinity(),
-      -std::numeric_limits<scalar_type>::infinity()
-    }
-  };
+  return aabb<scalar_type>{{std::numeric_limits<scalar_type>::infinity(),
+                            std::numeric_limits<scalar_type>::infinity(),
+                            std::numeric_limits<scalar_type>::infinity()},
+                           {-std::numeric_limits<scalar_type>::infinity(),
+                            -std::numeric_limits<scalar_type>::infinity(),
+                            -std::numeric_limits<scalar_type>::infinity()}};
 }
 
 //! \brief Calculates the union of two bounding boxes.
@@ -1173,26 +1085,16 @@ auto get_empty_aabb() noexcept {
 //!
 //! \return A bounding box that fits both boxes passed as parameters.
 template <typename scalar_type>
-auto union_of(const aabb<scalar_type>& a,
-              const aabb<scalar_type>& b) noexcept {
-
-  return aabb<scalar_type> {
-    min(a.min, b.min),
-    max(a.max, b.max)
-  };
+auto union_of(const aabb<scalar_type>& a, const aabb<scalar_type>& b) noexcept {
+  return aabb<scalar_type>{min(a.min, b.min), max(a.max, b.max)};
 }
 
 //! \brief Calculates the union of a bounding box and a 3D vector.
 //!
 //! \return A bounding box fitting both @p a and @p b.
 template <typename scalar_type>
-auto union_of(const aabb<scalar_type>& a,
-              const vec3<scalar_type>& b) noexcept {
-
-  return aabb<scalar_type> {
-    min(a.min, b),
-    max(a.max, b)
-  };
+auto union_of(const aabb<scalar_type>& a, const vec3<scalar_type>& b) noexcept {
+  return aabb<scalar_type>{min(a.min, b), max(a.max, b)};
 }
 
 //! \brief Calculates the size of a bounding box.
@@ -1208,16 +1110,18 @@ auto size_of(const aabb<scalar_type>& box) noexcept {
   return box.max - box.min;
 }
 
-//! \brief This class is used for calculating the centroid boundaries in the scene.
+//! \brief This class is used for calculating the centroid boundaries in the
+//! scene.
 //!
 //! \tparam scalar_type The scalar type of the bounding box to get.
 //!
 //! \tparam primitive_type The type of primitive in the scene.
 //!
 //! \tparam aabb_converter Calculates the bounding box of a primitive.
-template <typename scalar_type, typename primitive_type, typename aabb_converter>
+template <typename scalar_type, typename primitive_type,
+          typename aabb_converter>
 class centroid_bounds_kernel final {
-public:
+ public:
   //! A type definition for a type returned by this class.
   using box_type = aabb<scalar_type>;
   //! Constructs a new centroid bounds kernel.
@@ -1231,9 +1135,9 @@ public:
   //! \param thb The array of boxes per thread. Each thread
   //! will find a box for a certain portion of the scene. This
   //! array should have as many boxes as there are threads.
-  centroid_bounds_kernel(const primitive_type* p, size_type c, const aabb_converter& cvt, box_type* thb)
-    : primitives(p), count(c), converter(cvt), thread_boxes(thb) {
-  }
+  centroid_bounds_kernel(const primitive_type* p, size_type c,
+                         const aabb_converter& cvt, box_type* thb)
+      : primitives(p), count(c), converter(cvt), thread_boxes(thb) {}
   //! Runs the kernel.
   //! Each thread accumulates its own bounding box
   //! for the portion of the scene it was assigned.
@@ -1242,8 +1146,7 @@ public:
   //!
   //! \param div Given by the scheduler to indicate which
   //! portion of the scene this call should get the bounding box of.
-  void operator () (const work_division& div) noexcept {
-
+  void operator()(const work_division& div) noexcept {
     auto range = loop_range(div, count);
 
     auto box = get_empty_aabb<scalar_type>();
@@ -1254,7 +1157,8 @@ public:
 
     thread_boxes[div.idx] = box;
   }
-private:
+
+ private:
   //! The array of primitives to get the bounding box of.
   const primitive_type* primitives;
   //! The number of primitives in the primitive array.
@@ -1269,24 +1173,20 @@ private:
 //! \brief Used to get the domain of Morton coordinates,
 //! based on the size of the type being used.
 template <size_type type_size>
-struct morton_domain final { };
+struct morton_domain final {};
 
 //! \brief Contains the domain of 32-bit Morton codes.
 template <>
 struct morton_domain<4> final {
   //! Gets the domain of 32-bit Morton codes.
-  static constexpr size_type value() noexcept {
-    return 1024;
-  }
+  static constexpr size_type value() noexcept { return 1024; }
 };
 
 //! \brief Contains the domain of 64-bit Morton codes.
 template <>
 struct morton_domain<8> final {
   //! Gets the domain of 64-bit Morton codes.
-  static constexpr size_type value() noexcept {
-    return 1048576;
-  }
+  static constexpr size_type value() noexcept { return 1048576; }
 };
 
 //! \brief This class is used for encoding Morton values.
@@ -1299,16 +1199,15 @@ class morton_encoder final {};
 //! \brief Used for encoding 32-bit Morton codes.
 template <>
 class morton_encoder<4> final {
-public:
+ public:
   //! A type definition for a 32-bit Morton code.
   using code_type = associated_types<4>::uint_type;
   //! Encodes a 3D 32-bit Morton code.
-  inline code_type operator () (code_type x, code_type y, code_type z) noexcept {
-    return (expand(x) << 2)
-         | (expand(y) << 1)
-         | (expand(z) << 0);
+  inline code_type operator()(code_type x, code_type y, code_type z) noexcept {
+    return (expand(x) << 2) | (expand(y) << 1) | (expand(z) << 0);
   }
-protected:
+
+ protected:
   //! Expands a 10-bit value to 30-bits.
   inline static code_type expand(code_type n) noexcept {
     n = (n | (n << 16)) & 0x030000ff;
@@ -1322,16 +1221,15 @@ protected:
 //! \brief Used for encoding 64-bit Morton codes.
 template <>
 class morton_encoder<8> final {
-public:
+ public:
   //! A type definition for a 64-bit Morton code.
   using code_type = associated_types<8>::uint_type;
   //! Encodes a 3D 64-bit Morton code.
-  inline code_type operator () (code_type x, code_type y, code_type z) noexcept {
-    return (expand(x) << 2)
-         | (expand(y) << 1)
-         | (expand(z) << 0);
+  inline code_type operator()(code_type x, code_type y, code_type z) noexcept {
+    return (expand(x) << 2) | (expand(y) << 1) | (expand(z) << 0);
   }
-protected:
+
+ protected:
   //! Expands a 20-bit value to 60-bits.
   inline static code_type expand(code_type n) noexcept {
     n = (n | n << 32) & 0x001f00000000ffff;
@@ -1351,7 +1249,7 @@ protected:
 //! \tparam primitive_type The type of primitive in the scene.
 template <typename scalar_type, typename primitive_type>
 class morton_curve_kernel final {
-public:
+ public:
   //! A type definition for a code value.
   using code_type = typename associated_types<sizeof(scalar_type)>::uint_type;
   //! A type definition for an entry in the space filling curve.
@@ -1360,8 +1258,9 @@ public:
   //! \param p The primitive array to generate the values from.
   //! \param e The entry array to receive the values.
   //! \param c The number of primitives in the array.
-  constexpr morton_curve_kernel(const primitive_type* p, entry* e, size_type c) noexcept
-    : primitives(p), entries(e), count(c) {}
+  constexpr morton_curve_kernel(const primitive_type* p, entry* e,
+                                size_type c) noexcept
+      : primitives(p), entries(e), count(c) {}
   //! Calculates the Morton codes of a certain subset of the scene.
   //! The amount of work that's done depends on the work division.
   //!
@@ -1371,8 +1270,9 @@ public:
   //!
   //! \param converter The primitive to bounding box converter.
   template <typename aabb_converter>
-  void operator () (const work_division& div, const aabb<scalar_type>& centroid_bounds, aabb_converter converter) {
-
+  void operator()(const work_division& div,
+                  const aabb<scalar_type>& centroid_bounds,
+                  aabb_converter converter) {
     using entry_index_type = typename entry::index_type;
 
     //! This is the maximum number of primitives to
@@ -1384,10 +1284,10 @@ public:
     auto cbounds_size = size_of(centroid_bounds);
 
     // The scale at which the centroids map to Morton space.
-    vec3<scalar_type> scale {
-      mdomain / (cbounds_size.x + scalar_type(1)),
-      mdomain / (cbounds_size.y + scalar_type(1)),
-      mdomain / (cbounds_size.z + scalar_type(1)),
+    vec3<scalar_type> scale{
+        mdomain / (cbounds_size.x + scalar_type(1)),
+        mdomain / (cbounds_size.y + scalar_type(1)),
+        mdomain / (cbounds_size.z + scalar_type(1)),
     };
 
     morton_encoder<sizeof(code_type)> encoder;
@@ -1397,7 +1297,6 @@ public:
     vec_packet<scalar_type, 3, max_batch_size> center_packet;
 
     for (size_type i = range.begin; i < range.end; i += max_batch_size) {
-
       auto batch_size = min(max_batch_size, range.end - i);
 
       for (size_type j = 0; j < batch_size; j++) {
@@ -1414,18 +1313,18 @@ public:
       // Export Morton codes
 
       for (size_type j = 0; j < batch_size; j++) {
-
         auto x_code = code_type(center_packet[0][j]);
         auto y_code = code_type(center_packet[1][j]);
         auto z_code = code_type(center_packet[2][j]);
 
         auto code = encoder(x_code, y_code, z_code);
 
-        entries[i + j] = entry { code, entry_index_type(i + j) };
+        entries[i + j] = entry{code, entry_index_type(i + j)};
       }
     }
   }
-private:
+
+ private:
   //! The primitives the curve is being generated from.
   const primitive_type* primitives;
   //! The entries to receive the calculated values.
@@ -1447,15 +1346,15 @@ class morton_curve_builder final {
   //! This is most likely coming straight from the copy
   //! used by the BVH builder.
   task_scheduler& scheduler;
-public:
+
+ public:
   //! A type definition for a Morton curve.
   using code_type = typename associated_types<sizeof(scalar_type)>::uint_type;
   //! A type definition for the curve generated by this class.
   using curve_type = space_filling_curve<code_type>;
   //! Constructs a new curve builder.
   //! \param scheduler_ The scheduler to pass work items to.
-  morton_curve_builder(task_scheduler& scheduler_)
-    : scheduler(scheduler_) {}
+  morton_curve_builder(task_scheduler& scheduler_) : scheduler(scheduler_) {}
   //! Converts a set of primitives into a space filling curve.
   //!
   //! \param primitives The array of primitives to convert.
@@ -1466,17 +1365,19 @@ public:
   //!
   //! \return A space filling curve with Morton codes.
   template <typename primitive, typename aabb_converter>
-  curve_type operator () (const primitive* primitives, size_type count, const aabb_converter& converter) {
-
+  curve_type operator()(const primitive* primitives, size_type count,
+                        const aabb_converter& converter) {
     using entry_vec = typename curve_type::entry_vec;
 
     using box_type = aabb<scalar_type>;
 
-    using centroid_bounds_kernel_type = centroid_bounds_kernel<scalar_type, primitive, aabb_converter>;
+    using centroid_bounds_kernel_type =
+        centroid_bounds_kernel<scalar_type, primitive, aabb_converter>;
 
     std::vector<box_type> thread_boxes(scheduler.max_threads());
 
-    centroid_bounds_kernel_type scene_bounds_kern(primitives, count, converter, thread_boxes.data());
+    centroid_bounds_kernel_type scene_bounds_kern(primitives, count, converter,
+                                                  thread_boxes.data());
 
     scheduler(scene_bounds_kern);
 
@@ -1488,7 +1389,8 @@ public:
 
     entry_vec entries(count);
 
-    morton_curve_kernel<scalar_type, primitive> curve_kernel(primitives, entries.data(), count);
+    morton_curve_kernel<scalar_type, primitive> curve_kernel(
+        primitives, entries.data(), count);
 
     scheduler(curve_kernel, centroid_bounds, converter);
 
@@ -1518,14 +1420,16 @@ struct node_division final {
 //!
 //! \tparam code_type The type used for codes in the space filling curve.
 //!
-//! \param table The space filling curve, used to determine the indices of the split.
+//! \param table The space filling curve, used to determine the indices of the
+//! split.
 //!
 //! \param node_index The index of the node being divided.
 //!
-//! \return A division structure instance, which may be used to assign sub nodes.
+//! \return A division structure instance, which may be used to assign sub
+//! nodes.
 template <typename code_type>
-node_division divide_node(const space_filling_curve<code_type>& table, size_type node_index) noexcept {
-
+node_division divide_node(const space_filling_curve<code_type>& table,
+                          size_type node_index) noexcept {
   // Used as the return value of the delta operator.
   using delta_type = typename associated_types<sizeof(code_type)>::int_type;
 
@@ -1536,7 +1440,6 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
   // if 'k' is out of bounds. Appears in the
   // LBVH paper as 'δ' (lower case delta)
   auto calc_delta = [&table](offset_type j, offset_type k) -> delta_type {
-
     if ((k < 0) || (k >= offset_type(table.size()))) {
       // Suggested by the paper for out of bounds 'k'
       return -1;
@@ -1545,7 +1448,8 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
     auto l_code = table[size_type(j)].code;
     auto r_code = table[size_type(k)].code;
 
-    using clz_input_type = typename associated_types<sizeof(code_type)>::uint_type;
+    using clz_input_type =
+        typename associated_types<sizeof(code_type)>::uint_type;
 
     if (l_code == r_code) {
       // Suggested by the paper in
@@ -1569,7 +1473,6 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
   offset_type l_max = 128;
 
   while (true) {
-
     auto k = i + (l_max * d);
 
     if (k >= table_size) {
@@ -1586,7 +1489,6 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
   offset_type l = 0;
 
   for (offset_type div = 2; true; div *= 2) {
-
     auto t = l_max / div;
 
     auto k = i + ((l + t) * d);
@@ -1607,7 +1509,6 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
   offset_type s = 0;
 
   for (offset_type div = 2; true; div *= 2) {
-
     auto t = ceil_div(l, div);
 
     auto k = i + ((s + t) * d);
@@ -1623,11 +1524,7 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
 
   auto gamma = i + (s * d) + min(d, delta_type(0));
 
-  return node_division {
-    size_type(i),
-    size_type(j),
-    size_type(gamma)
-  };
+  return node_division{size_type(i), size_type(j), size_type(gamma)};
 }
 
 //! \brief Used for building the BVH nodes.
@@ -1638,7 +1535,7 @@ node_division divide_node(const space_filling_curve<code_type>& table, size_type
 //! \tparam scalar_type The scalar type used by the node boxes.
 template <typename code_type, typename scalar_type>
 class builder_kernel final {
-public:
+ public:
   //! A type definition for a space filling curve.
   using curve_type = space_filling_curve<code_type>;
   //! A type definition for a node type.
@@ -1647,17 +1544,15 @@ public:
   //! \param c The curve containing the codes to build the nodes with.
   //! \param n The allocated node array to put the node data into.
   constexpr builder_kernel(const curve_type& c, node_type* n) noexcept
-    : curve(c), nodes(n) {}
+      : curve(c), nodes(n) {}
   //! Calls the kernel to build a certain portion of the BVH nodes.
   //! \param div The division of work this function call is responsible for.
-  void operator () (const work_division& div) noexcept {
-
+  void operator()(const work_division& div) noexcept {
     using index_type = typename node_type::index_type;
 
     auto range = loop_range(div, curve.size() - 1);
 
     for (auto i = range.begin; i < range.end; i++) {
-
       auto node_div = divide_node(curve, i);
 
       auto l_is_leaf = (node_div.min() == (node_div.split + 0));
@@ -1666,11 +1561,12 @@ public:
       auto l_mask = l_is_leaf ? highest_bit<index_type>() : 0;
       auto r_mask = r_is_leaf ? highest_bit<index_type>() : 0;
 
-      nodes[i].left  = index_type((node_div.split + 0) | l_mask);
+      nodes[i].left = index_type((node_div.split + 0) | l_mask);
       nodes[i].right = index_type((node_div.split + 1) | r_mask);
     }
   }
-private:
+
+ private:
   //! This is the space filling curve used to determine
   //! the range and split of each node that this kernel will build.
   const curve_type& curve;
@@ -1685,9 +1581,10 @@ private:
 //! \tparam max The maximum number of entries to allocate on the stack.
 template <typename scalar_type, size_type max>
 class traversal_stack final {
-public:
+ public:
   //! The type to be used for a node index.
-  using node_index_type = typename associated_types<sizeof(scalar_type)>::uint_type;
+  using node_index_type =
+      typename associated_types<sizeof(scalar_type)>::uint_type;
   //! Contains information regarding a ndoe
   //! to be traversed.
   struct entry final {
@@ -1699,13 +1596,11 @@ public:
   };
   //! Indicates the number of entries remaining
   //! in the stack.
-  inline size_type remaining() const noexcept {
-    return pos;
-  }
+  inline size_type remaining() const noexcept { return pos; }
   //! Removes an entry from the stack.
   auto pop() noexcept {
     if (!pos) {
-      return entry { 0, std::numeric_limits<scalar_type>::infinity() };
+      return entry{0, std::numeric_limits<scalar_type>::infinity()};
     }
     return entries[--pos];
   }
@@ -1714,23 +1609,26 @@ public:
   //! \param t The scale at which the ray intersects this node.
   void push(size_type i, scalar_type t) noexcept {
     if (pos < max) {
-      entries[pos++] = entry { node_index_type(i), t };
+      entries[pos++] = entry{node_index_type(i), t};
     }
   }
-private:
+
+ private:
   //! The position of the "stack pointer."
   size_type pos = 0;
   //! The array of entries to be filled.
   entry entries[max];
 };
 
-} // namespace detail
+}  // namespace detail
 
 template <typename scalar_type, typename task_scheduler>
 template <typename primitive, typename aabb_converter>
-auto builder<scalar_type, task_scheduler>::operator () (const primitive* primitives, size_type count, const aabb_converter& converter) -> bvh_type {
-
-  using curve_builder_type = detail::morton_curve_builder<scalar_type, task_scheduler>;
+auto builder<scalar_type, task_scheduler>::operator()(
+    const primitive* primitives, size_type count,
+    const aabb_converter& converter) -> bvh_type {
+  using curve_builder_type =
+      detail::morton_curve_builder<scalar_type, task_scheduler>;
 
   using code_type = typename curve_builder_type::code_type;
 
@@ -1742,7 +1640,8 @@ auto builder<scalar_type, task_scheduler>::operator () (const primitive* primiti
 
   std::vector<node_type> node_vec(curve.size() - 1);
 
-  detail::builder_kernel<code_type, scalar_type> builder_kern(curve, node_vec.data());
+  detail::builder_kernel<code_type, scalar_type> builder_kern(curve,
+                                                              node_vec.data());
 
   scheduler(builder_kern);
 
@@ -1753,8 +1652,9 @@ auto builder<scalar_type, task_scheduler>::operator () (const primitive* primiti
 
 template <typename scalar_type, typename task_scheduler>
 template <typename primitive, typename aabb_converter>
-void builder<scalar_type, task_scheduler>::fit_boxes(node_vec& nodes, const primitive* primitives, const aabb_converter& converter) {
-
+void builder<scalar_type, task_scheduler>::fit_boxes(
+    node_vec& nodes, const primitive* primitives,
+    const aabb_converter& converter) {
   std::vector<size_type> indices;
 
   indices.reserve(nodes.size());
@@ -1762,7 +1662,6 @@ void builder<scalar_type, task_scheduler>::fit_boxes(node_vec& nodes, const prim
   indices.push_back(0);
 
   for (size_type i = 0; i < indices.size(); i++) {
-
     auto j = indices[i];
 
     if (!nodes[j].left_is_leaf()) {
@@ -1775,7 +1674,6 @@ void builder<scalar_type, task_scheduler>::fit_boxes(node_vec& nodes, const prim
   }
 
   for (size_type i = indices.size(); i > 0; i--) {
-
     auto j = indices[i - 1];
 
     auto& node = nodes[j];
@@ -1787,17 +1685,20 @@ void builder<scalar_type, task_scheduler>::fit_boxes(node_vec& nodes, const prim
     }
 
     if (node.right_is_leaf()) {
-      node.box = detail::union_of(node.box, converter(primitives[node.right_leaf_index()]));
+      node.box = detail::union_of(
+          node.box, converter(primitives[node.right_leaf_index()]));
     } else {
       node.box = detail::union_of(node.box, nodes[node.right].box);
     }
   }
 }
 
-template <typename scalar_type, typename primitive_type, typename intersection_type>
+template <typename scalar_type, typename primitive_type,
+          typename intersection_type>
 template <typename intersector_type>
-intersection_type traverser<scalar_type, primitive_type, intersection_type>::operator () (const ray_type& ray, const intersector_type& intersector) const noexcept {
-
+auto traverser<scalar_type, primitive_type, intersection_type>::operator()(
+    const ray_type& ray, const intersector_type& intersector) const noexcept
+    -> intersection {
   using box_intersection_type = detail::box_intersection<scalar_type>;
 
   detail::traversal_stack<scalar_type, 128> stack;
@@ -1806,19 +1707,17 @@ intersection_type traverser<scalar_type, primitive_type, intersection_type>::ope
 
   auto accel_r = detail::make_accel_ray(ray);
 
-  auto intersect_primitive = [](const auto& intersector_, const auto* p, auto index, const auto& r) {
-    auto isect = intersector_(p[index], r);
-    isect.primitive = index;
-    return isect;
+  auto intersect_primitive = [](const auto& intersector_, const auto* p,
+                                auto index, const auto& r) {
+    return intersection(index, intersector_(p[index], r));
   };
 
-  intersection_type closest;
+  intersection closest;
 
   while (stack.remaining()) {
-
     auto entry = stack.pop();
 
-    if (closest < entry.tmin) {
+    if (closest.info < entry.tmin) {
       // We've already got a closer intersection than
       // what can be found at this node, we can skip this.
       continue;
@@ -1830,9 +1729,8 @@ intersection_type traverser<scalar_type, primitive_type, intersection_type>::ope
 
     if (node.left_is_leaf()) {
       auto left_isect = intersect_primitive(intersector, primitives, node.left_leaf_index(), ray);
-      if (left_isect < closest) {
+      if (left_isect.info < closest.info)
         closest = left_isect;
-      }
     } else {
       left_box_isect = detail::intersect(bvh_[node.left].box, accel_r);
     }
@@ -1840,10 +1738,10 @@ intersection_type traverser<scalar_type, primitive_type, intersection_type>::ope
     box_intersection_type right_box_isect;
 
     if (node.right_is_leaf()) {
-      auto right_isect = intersect_primitive(intersector, primitives, node.right_leaf_index(), ray);
-      if (right_isect < closest) {
+      auto right_isect = intersect_primitive(intersector, primitives,
+                                             node.right_leaf_index(), ray);
+      if (right_isect.info < closest.info)
         closest = right_isect;
-      }
     } else {
       right_box_isect = detail::intersect(bvh_[node.right].box, accel_r);
     }
@@ -1851,9 +1749,9 @@ intersection_type traverser<scalar_type, primitive_type, intersection_type>::ope
     if (left_box_isect && right_box_isect) {
       if (left_box_isect < right_box_isect) {
         stack.push(node.right, right_box_isect.tmin);
-        stack.push(node.left,   left_box_isect.tmin);
+        stack.push(node.left, left_box_isect.tmin);
       } else {
-        stack.push(node.left,   left_box_isect.tmin);
+        stack.push(node.left, left_box_isect.tmin);
         stack.push(node.right, right_box_isect.tmin);
       }
     } else if (left_box_isect) {
@@ -1866,4 +1764,4 @@ intersection_type traverser<scalar_type, primitive_type, intersection_type>::ope
   return closest;
 }
 
-} // namespace lbvh
+}  // namespace lbvh

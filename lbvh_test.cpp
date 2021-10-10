@@ -91,6 +91,30 @@ public:
   }
 };
 
+template<typename scalar_type>
+struct triangle_intersection final
+{
+  using vec2_type = lbvh::vec2<scalar_type>;
+
+  using vec3_type = lbvh::vec3<scalar_type>;
+
+  scalar_type distance = std::numeric_limits<scalar_type>::infinity();
+
+  vec2_type uv = vec2_type{0, 0};
+
+  vec3_type normal = vec3_type{0, 0, 0};
+
+  constexpr bool operator < (const triangle_intersection& other) const noexcept
+  {
+    return distance < other.distance;
+  }
+
+  constexpr bool operator < (scalar_type other_distance) const noexcept
+  {
+    return distance < other_distance;
+  }
+};
+
 //! Used to detect intersections between rays and triangles.
 //!
 //! \tparam scalar_type The scalar type of the triangle vector components.
@@ -102,7 +126,7 @@ public:
   //! A type definition for a triangle.
   using triangle_type = triangle<scalar_type>;
   //! A type definition for an intersection.
-  using intersection_type = lbvh::intersection<scalar_type>;
+  using intersection_type = triangle_intersection<scalar_type>;
   //! A type definition for a ray.
   using ray_type = lbvh::ray<scalar_type>;
   //! Detects intersection between a ray and the triangle.
@@ -152,7 +176,7 @@ public:
     vec2_type uv = (tri.uv[0] * (scalar_type(1.0) - u - v)) + (tri.uv[1] * u) + (tri.uv[2] * v);
 
     return intersection_type {
-      t, { 0, 0, 1 }, { uv.x, uv.y }, 0
+      t, { uv.x, uv.y }, {0 ,0 , 1}
     };
   }
 };
@@ -361,8 +385,12 @@ class test final {
   using converter_type = triangle_aabb_converter<scalar_type>;
   //! A type definition for the type used to detect primitive intersections.
   using intersector_type = triangle_intersector<scalar_type>;
+
+  using intersection_type = triangle_intersection<scalar_type>;
+
   //! A type definition for a BVH traverser.
-  using traverser_type = lbvh::traverser<scalar_type, primitive_type>;
+  using traverser_type = lbvh::traverser<scalar_type, primitive_type, intersection_type>;
+
   //! A type definition for aray.
   using ray_type = lbvh::ray<scalar_type>;
 public:
@@ -461,8 +489,8 @@ protected:
       auto isect = traverser(r, intersector);
 
       return color<scalar_type> {
-        isect.uv.x,
-        isect.uv.y,
+        isect.info.uv.x,
+        isect.info.uv.y,
         0.5
       };
     };

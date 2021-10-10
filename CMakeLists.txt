@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 
 project(lbvh)
 
+option(LBVH_EXAMPLES "Whether or not to build the examples." OFF)
+
 find_package(Threads REQUIRED)
 
 set(model_path "${CMAKE_CURRENT_SOURCE_DIR}/models/sponza.obj")
@@ -42,5 +44,18 @@ add_executable(lbvh_test
 target_compile_options(lbvh_test PRIVATE ${cxxflags})
 
 target_link_libraries(lbvh_test PRIVATE lbvh Threads::Threads)
+
+if(LBVH_EXAMPLES)
+
+  add_executable(lbvh_example_minimal
+    examples/minimal.cpp)
+
+  target_link_libraries(lbvh_example_minimal PRIVATE lbvh Threads::Threads)
+
+  set_target_properties(lbvh_example_minimal
+    PROPERTIES
+      OUTPUT_NAME minimal_example)
+
+endif(LBVH_EXAMPLES)
 
 enable_testing()
