@@ -1,6 +1,7 @@
 #include <lbvh.h>
 
 #include "third-party/stb_image_write.h"
+#include "third-party/tiny_obj_loader.h"
 
 #include <chrono>
 
@@ -60,8 +61,6 @@ template <typename scalar_type>
 struct triangle final {
   //! The triangle position values.
   lbvh::vec3<scalar_type> pos[3];
-  //! The UV coordinates at each position.
-  lbvh::vec2<scalar_type> uv[3];
 };
 
 //! Used for converting triangles in the model to bounding boxes.
@@ -99,10 +98,6 @@ struct triangle_intersection final
   using vec3_type = lbvh::vec3<scalar_type>;
 
   scalar_type distance = std::numeric_limits<scalar_type>::infinity();
-
-  vec2_type uv = vec2_type{0, 0};
-
-  vec3_type normal = vec3_type{0, 0, 0};
 
   constexpr bool operator < (const triangle_intersection& other) const noexcept
   {
@@ -173,10 +168,8 @@ public:
     // At this point, we know we have a hit.
     // We just need to calculate the UV coordinates.
 
-    vec2_type uv = (tri.uv[0] * (scalar_type(1.0) - u - v)) + (tri.uv[1] * u) + (tri.uv[2] * v);
-
     return intersection_type {
-      t, { uv.x, uv.y }, {0 ,0 , 1}
+      t
     };
   }
 };
@@ -209,39 +202,7 @@ public:
   //! The file name is based on the scalar type.
   //!
   //! \return True on success, false on failure.
-  bool open() {
-
-    auto* file = std::fopen(type_traits<scalar_type>::scene_path(), "rb");
-    if (!file) {
-      return false;
-    }
-
-    auto size = get_file_size(file);
-    if (size < 0) {
-      std::fclose(file);
-      return false;
-    }
-
-    // Read triangle data
-
-    constexpr size_type scalars_per_triangle = 15;
-
-    constexpr size_type bytes_per_triangle = scalars_per_triangle * sizeof(scalar_type);
-
-    static_assert(sizeof(triangle<scalar_type>) == (bytes_per_triangle), "Triangle structure not compatible");
-
-    auto triangle_count = size / bytes_per_triangle;
-
-    triangles.resize(triangle_count);
-
-    void* data_ptr = triangles.data();
-
-    auto read_count = std::fread(data_ptr, bytes_per_triangle, triangle_count, file);
-
-    std::fclose(file);
-
-    return read_count == triangle_count;
-  }
+  bool open(const char* path);
 protected:
   //! Gets the size of a file.
   //!
@@ -409,7 +370,7 @@ public:
 
     scene_type s;
 
-    if (!s.open()) {
+    if (!s.open(filename)) {
       return test_results{};
     }
 
@@ -488,10 +449,10 @@ protected:
 
       auto isect = traverser(r, intersector);
 
+      const scalar_type c = 1 / (1 + isect.info.distance);
+
       return color<scalar_type> {
-        isect.info.uv.x,
-        isect.info.uv.y,
-        0.5
+        c, c, c
       };
     };
 
@@ -738,4 +699,53 @@ int main(int argc, char** argv) {
   }
 
   return 0;
+}
+
+template<typename scalar_type>
+bool
+scene<scalar_type>::open(const char* path)
+{
+  using vec3 = lbvh::vec3<scalar_type>;
+
+  tinyobj::ObjReader reader;
+
+  if (!reader.ParseFromFile(path)) {
+    std::fprintf(stderr, "Failed to open '%s'\n", path);
+    return false;
+  }
+
+  size_t tri_count = 0;
+
+  for (const auto& shape : reader.GetShapes())
+    tri_count += shape.mesh.indices.size() / 3;
+
+  triangles.resize(tri_count);
+
+  size_t tri_index = 0;
+
+  const auto& attrib = reader.GetAttrib();
+
+  for (const auto& shape : reader.GetShapes()) {
+
+    for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+
+      const int a = shape.mesh.indices[i + 0].vertex_index * 3;
+      const int b = shape.mesh.indices[i + 1].vertex_index * 3;
+      const int c = shape.mesh.indices[i + 2].vertex_index * 3;
+
+      const float *a_vert = &attrib.vertices[a];
+      const float *b_vert = &attrib.vertices[b];
+      const float *c_vert = &attrib.vertices[c];
+
+      const vec3 p0{a_vert[0], a_vert[1], a_vert[2]};
+      const vec3 p1{b_vert[0], b_vert[1], b_vert[2]};
+      const vec3 p2{c_vert[0], c_vert[1], c_vert[2]};
+
+      triangles[tri_index] = triangle<scalar_type>{p0, p1, p2};
+
+      tri_index++;
+    }
+  }
+
+  return true;
 }
