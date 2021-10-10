@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.0)
 project(lbvh)
 
 option(LBVH_EXAMPLES "Whether or not to build the examples." OFF)
+option(LBVH_BENCH "Whether or not to build the benchmark." OFF)
+option(LBVH_TEST "Whether or not to build the test." OFF)
 
 find_package(Threads REQUIRED)
 

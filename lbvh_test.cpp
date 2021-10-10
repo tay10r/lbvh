@@ -319,6 +319,8 @@ struct test_options final
   bool errors_fatal = false;
   //! Whether or not rendering should be skipped.
   bool skip_rendering = false;
+  //! The OBJ file to render.
+  const char* model_path = MODEL_PATH;
 };
 
 //! A function object that tests the BVH build
@@ -356,22 +358,20 @@ class test final
 public:
   //! Runs the test.
   //!
-  //! \param filename The path to the .obj file to test with.
-  //!
   //! \param opts Test options passed from the command line.
   //!
   //! \return An instance of @ref test_results containing the relevant data.
-  static auto run(const char* filename, const test_options& opts)
+  static auto run(const test_options& opts)
   {
 
     std::printf("Running test for type '%s'\n",
                 type_traits<scalar_type>::name());
 
-    std::printf("  Loading model '%s'\n", filename);
+    std::printf("  Loading model '%s'\n", opts.model_path);
 
     scene_type s;
 
-    if (!s.open(filename)) {
+    if (!s.open(opts.model_path)) {
       return test_results{};
     }
 
@@ -451,7 +451,10 @@ protected:
     auto tracer_kern = [&traverser, &intersector](const ray_type& r) {
       auto isect = traverser(r, intersector);
 
-      return color<scalar_type>{ isect.info.uv.x, isect.info.uv.y, 1 };
+      if (isect)
+        return color<scalar_type>{ isect.info.uv.x, isect.info.uv.y, 1 };
+      else
+        return color<scalar_type>{ 0, 0, 0 };
     };
 
     std::vector<unsigned char> image(image_width() * image_height() * 3);
@@ -656,7 +659,6 @@ protected:
 int
 main(int argc, char** argv)
 {
-
   test_options options;
 
   for (int i = 1; i < argc; i++) {
@@ -664,15 +666,18 @@ main(int argc, char** argv)
       options.errors_fatal = true;
     } else if (std::strcmp(argv[i], "--skip-rendering") == 0) {
       options.skip_rendering = true;
+    } else if (argv[i][0] != '-') {
+      options.model_path = argv[i];
+    } else {
+      std::fprintf(stderr, "unknown option '%s'\n", argv[i]);
+      return EXIT_FAILURE;
     }
   }
 
   std::vector<test_results> results;
 
-  const char* model_path = MODEL_PATH;
-
-  results.emplace_back(test<float>::run(model_path, options));
-  results.emplace_back(test<double>::run(model_path, options));
+  results.emplace_back(test<float>::run(options));
+  results.emplace_back(test<double>::run(options));
 
   std::printf("\n");
 
