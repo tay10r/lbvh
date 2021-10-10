@@ -364,6 +364,10 @@ struct ray final {
   //! The direction at which the ray is pointing at.
   //! Usually, this is not normalized.
   vec_type dir;
+  //! The minimum distance that intersections can be accepted.
+  scalar_type tmin = 0;
+  //! The maximum distance that intersections can be accepted.
+  scalar_type tmax = std::numeric_limits<scalar_type>::infinity();
 };
 
 //! \brief Represents a single ray with
@@ -557,7 +561,8 @@ auto hadamard_mul(const vec3<scalar_type>& a,
 template <typename scalar_type>
 inline constexpr vec3<scalar_type> cross(const vec3<scalar_type>& a,
                                          const vec3<scalar_type>& b) noexcept {
-  return vec3<scalar_type>{(a.y * b.z) - (a.z * b.y), (a.z * b.x) - (a.x * b.z),
+  return vec3<scalar_type>{(a.y * b.z) - (a.z * b.y),
+                           (a.z * b.x) - (a.x * b.z),
                            (a.x * b.y) - (a.y * b.x)};
 }
 

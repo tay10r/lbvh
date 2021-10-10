@@ -29,6 +29,10 @@ target_compile_options(lbvh_test PRIVATE ${cxxflags})
 
 target_link_libraries(lbvh_test PRIVATE lbvh Threads::Threads)
 
+if(NOT MSVC)
+  target_compile_options(lbvh_test PRIVATE -Wall -Wextra -Werror -Wfatal-errors)
+endif(NOT MSVC)
+
 if(LBVH_EXAMPLES)
 
   add_executable(lbvh_example_minimal
