@@ -63,130 +63,6 @@ struct type_traits<double>
 
 using namespace lbvh::math;
 
-template<typename scalar_type>
-class triangle_intersector;
-
-template<typename scalar_type>
-class triangle_aabb_converter;
-
-//! Represents a 3D triangle from an .obj model.
-//!
-//! \tparam scalar_type The floating point type to represent the triangle with.
-template<typename scalar_type>
-struct triangle final
-{
-  using vec3 = lbvh::vec3<scalar_type>;
-
-  constexpr triangle() = default;
-
-  constexpr triangle(const vec3& a, const vec3& b, const vec3& c)
-    : p0(a)
-    , e0(a - b)
-    , e1(c - a)
-    , normal(lbvh::math::cross(e0, e1))
-  {}
-
-private:
-  friend triangle_intersector<scalar_type>;
-
-  friend triangle_aabb_converter<scalar_type>;
-
-  vec3 p0;
-  vec3 e0;
-  vec3 e1;
-  vec3 normal;
-};
-
-//! Used for converting triangles in the model to bounding boxes.
-//!
-//! \tparam scalar_type The scalar type of the bounding box vectors to make.
-template<typename scalar_type>
-class triangle_aabb_converter final
-{
-public:
-  //! A type definition for a model bouding box.
-  using box_type = lbvh::aabb<scalar_type>;
-  //! A type definition for a triangle.
-  using triangle_type = triangle<scalar_type>;
-  //! Gets a bounding box for a triangle in the model.
-  //!
-  //! \param t The triangle to get the bounding box for.
-  //!
-  //! \return The bounding box for the specified triangle.
-  box_type operator()(const triangle_type& t) const noexcept
-  {
-    const auto p1 = t.p0 - t.e0;
-    const auto p2 = t.p0 + t.e1;
-
-    auto tmp_min = lbvh::math::min(t.p0, p1);
-    auto tmp_max = lbvh::math::max(t.p0, p1);
-
-    return box_type{ lbvh::math::min(tmp_min, p2),
-                     lbvh::math::max(tmp_max, p2) };
-  }
-};
-
-template<typename scalar_type>
-struct triangle_intersection final
-{
-  using vec2_type = lbvh::vec2<scalar_type>;
-
-  using vec3_type = lbvh::vec3<scalar_type>;
-
-  scalar_type distance = std::numeric_limits<scalar_type>::infinity();
-
-  vec2_type uv;
-
-  constexpr bool operator<(const triangle_intersection& other) const noexcept
-  {
-    return distance < other.distance;
-  }
-
-  constexpr bool operator<(scalar_type other_distance) const noexcept
-  {
-    return distance < other_distance;
-  }
-};
-
-//! Used to detect intersections between rays and triangles.
-//!
-//! \tparam scalar_type The scalar type of the triangle vector components.
-template<typename scalar_type>
-class triangle_intersector final
-{
-public:
-  //! A type definition for a 2D vector.
-  using vec2_type = lbvh::vec2<scalar_type>;
-  //! A type definition for a 3D vector.
-  using vec3_type = lbvh::vec3<scalar_type>;
-  //! A type definition for a triangle.
-  using triangle_type = triangle<scalar_type>;
-  //! A type definition for an intersection.
-  using intersection_type = triangle_intersection<scalar_type>;
-  //! A type definition for a ray.
-  using ray_type = lbvh::ray<scalar_type>;
-  //! Detects intersection between a ray and the triangle.
-  intersection_type operator()(const triangle<scalar_type>& tri,
-                               const ray_type& ray) const noexcept
-  {
-    const vec3_type c = tri.p0 - ray.pos;
-    const vec3_type r = lbvh::math::cross(ray.dir, c);
-    const scalar_type inv_det = 1 / lbvh::math::dot(tri.normal, ray.dir);
-
-    const scalar_type u = dot(r, tri.e1) * inv_det;
-    const scalar_type v = dot(r, tri.e0) * inv_det;
-    const scalar_type w = scalar_type(1) - u - v;
-
-    if ((u >= 0) && (v >= 0) && (w >= 0)) {
-      const scalar_type t = dot(tri.normal, c) * inv_det;
-      if ((t >= ray.tmin) && (t <= ray.tmax))
-        return intersection_type{ t, { u, v } };
-    }
-
-    return intersection_type{};
-  }
-};
-
 //! A simplified scene model.
 //! Internally is a flat array of triangles.
 //!
@@ -195,7 +71,7 @@ template<typename scalar_type>
 class scene final
 {
   //! A type definition for triangles.
-  using triangle_type = triangle<scalar_type>;
+  using triangle_type = lbvh::triangle<scalar_type>;
   //! The triangles of the scene.
   std::vector<triangle_type> triangles;
 

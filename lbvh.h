@@ -1942,3 +1942,139 @@ traverser<scalar_type, primitive_type, intersection_type>::operator()(
 }
 
 } // namespace lbvh
+
+#ifndef LBVH_NO_TRIANGLE
+
+namespace lbvh {
+
+template<typename scalar_type>
+class triangle_intersector;
+
+template<typename scalar_type>
+class triangle_aabb_converter;
+
+//! Represents a 3D triangle from an .obj model.
+//!
+//! \tparam scalar_type The floating point type to represent the triangle with.
+template<typename scalar_type>
+class triangle final
+{
+public:
+  using vec3_type = vec3<scalar_type>;
+
+  constexpr triangle() = default;
+
+  constexpr triangle(const vec3_type& a, const vec3_type& b, const vec3_type& c)
+    : p0(a)
+    , e0(math::operator-(a, b))
+    , e1(math::operator-(c, a))
+    , normal(math::cross(e0, e1))
+  {}
+
+private:
+  friend triangle_intersector<scalar_type>;
+
+  friend triangle_aabb_converter<scalar_type>;
+
+  vec3_type p0;
+  vec3_type e0;
+  vec3_type e1;
+  vec3_type normal;
+};
+
+//! Used for converting triangles in the model to bounding boxes.
+//!
+//! \tparam scalar_type The scalar type of the bounding box vectors to make.
+template<typename scalar_type>
+class triangle_aabb_converter final
+{
+public:
+  //! A type definition for a model bouding box.
+  using box_type = aabb<scalar_type>;
+  //! A type definition for a triangle.
+  using triangle_type = triangle<scalar_type>;
+  //! Gets a bounding box for a triangle in the model.
+  //!
+  //! \param t The triangle to get the bounding box for.
+  //!
+  //! \return The bounding box for the specified triangle.
+  box_type operator()(const triangle_type& t) const noexcept
+  {
+    using namespace math;
+
+    const auto p1 = t.p0 - t.e0;
+    const auto p2 = t.p0 + t.e1;
+
+    auto tmp_min = min(t.p0, p1);
+    auto tmp_max = max(t.p0, p1);
+
+    return box_type{ min(tmp_min, p2), max(tmp_max, p2) };
+  }
+};
+
+template<typename scalar_type>
+struct triangle_intersection final
+{
+  using vec2_type = vec2<scalar_type>;
+
+  using vec3_type = vec3<scalar_type>;
+
+  scalar_type distance = std::numeric_limits<scalar_type>::infinity();
+
+  vec2_type uv;
+
+  constexpr bool operator<(const triangle_intersection& other) const noexcept
+  {
+    return distance < other.distance;
+  }
+
+  constexpr bool operator<(scalar_type other_distance) const noexcept
+  {
+    return distance < other_distance;
+  }
+};
+
+//! Used to detect intersections between rays and triangles.
+//!
+//! \tparam scalar_type The scalar type of the triangle vector components.
+template<typename scalar_type>
+class triangle_intersector final
+{
+public:
+  //! A type definition for a 2D vector.
+  using vec2_type = vec2<scalar_type>;
+  //! A type definition for a 3D vector.
+  using vec3_type = vec3<scalar_type>;
+  //! A type definition for a triangle.
+  using triangle_type = triangle<scalar_type>;
+  //! A type definition for an intersection.
+  using intersection_type = triangle_intersection<scalar_type>;
+  //! A type definition for a ray.
+  using ray_type = ray<scalar_type>;
+  //! Detects intersection between a ray and the triangle.
+  intersection_type operator()(const triangle<scalar_type>& tri,
+                               const ray_type& ray) const noexcept
+  {
+    using namespace math;
+
+    const vec3_type c = tri.p0 - ray.pos;
+    const vec3_type r = math::cross(ray.dir, c);
+    const scalar_type inv_det = 1 / math::dot(tri.normal, ray.dir);
+
+    const scalar_type u = dot(r, tri.e1) * inv_det;
+    const scalar_type v = dot(r, tri.e0) * inv_det;
+    const scalar_type w = scalar_type(1) - u - v;
+
+    if ((u >= 0) && (v >= 0) && (w >= 0)) {
+      const scalar_type t = dot(tri.normal, c) * inv_det;
+      if ((t >= ray.tmin) && (t <= ray.tmax))
+        return intersection_type{ t, { u, v } };
+    }
+
+    return intersection_type{};
+  }
+};
+
+} // namespace lbvh
+
+#endif // LBVH_NO_TRIANGLE
