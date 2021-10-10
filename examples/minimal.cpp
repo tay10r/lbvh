@@ -12,7 +12,8 @@ namespace {
 //! In order to build a BVH, we'll
 //! need to define a shape to make a scene with.
 //! In this example, we choose a sphere because it's simple.
-struct sphere final {
+struct sphere final
+{
   //! The radius of the sphere.
   float radius;
   //! The position of the sphere,
@@ -20,28 +21,35 @@ struct sphere final {
   float pos[3];
 };
 
-struct sphere_hit final {
+struct sphere_hit final
+{
   float tmin = std::numeric_limits<float>::infinity();
 
-  float uv[2]{0, 0};
+  float uv[2]{ 0, 0 };
 
-  float normal[3]{0, 0, 0};
+  float normal[3]{ 0, 0, 0 };
 
-  constexpr bool operator<(const sphere_hit& other) const noexcept {
+  constexpr bool operator<(const sphere_hit& other) const noexcept
+  {
     return tmin < other.tmin;
   }
 
-  constexpr bool operator<(float distance) const noexcept {
+  constexpr bool operator<(float distance) const noexcept
+  {
     return tmin < distance;
   }
 };
 
-}  // namespace
+} // namespace
 
-int main() {
+int
+main()
+{
   // This is the scene we want to build
   // a BVH for, just three spheres.
-  sphere spheres[3]{{1, {5, 1, -5}}, {1, {0, 2, -5}}, {1, {-5, 1, -5}}};
+  sphere spheres[3]{ { 1, { 5, 1, -5 } },
+                     { 1, { 0, 2, -5 } },
+                     { 1, { -5, 1, -5 } } };
 
   // This is the lamba function we'll be
   // using to get the bounding boxes of our spheres.
@@ -51,8 +59,9 @@ int main() {
   // acronym for axis-aligned bounding box.
   auto sphere_to_box = [](sphere s) -> lbvh::aabb<float> {
     return lbvh::aabb<float>{
-        {s.pos[0] - s.radius, s.pos[1] - s.radius, s.pos[2] - s.radius},
-        {s.pos[0] + s.radius, s.pos[1] + s.radius, s.pos[2] + s.radius}};
+      { s.pos[0] - s.radius, s.pos[1] - s.radius, s.pos[2] - s.radius },
+      { s.pos[0] + s.radius, s.pos[1] + s.radius, s.pos[2] + s.radius }
+    };
   };
 
   // A builder is what's used to make a BVH from a scene.
@@ -88,7 +97,7 @@ int main() {
 
     using namespace lbvh::math;
 
-    lbvh::vec3<float> s_pos{s.pos[0], s.pos[1], s.pos[2]};
+    lbvh::vec3<float> s_pos{ s.pos[0], s.pos[1], s.pos[2] };
 
     auto dist = ray.pos - s_pos;
 
@@ -101,7 +110,8 @@ int main() {
     // solve quadratic equation
 
     auto disc = (b * b) - (4 * a * c);
-    if (disc < 0) return sphere_hit{};
+    if (disc < 0)
+      return sphere_hit{};
 
     auto t0 = (-b + std::sqrt(disc)) / (2 * a);
     auto t1 = (-b - std::sqrt(disc)) / (2 * a);
@@ -118,10 +128,10 @@ int main() {
 
     constexpr auto pi = float(M_PI);
 
-    lbvh::vec2<float> uv{(1.0f + std::atan2(normal.z, normal.x) / pi) * 0.5f,
-                         std::acos(normal.y) / pi};
+    lbvh::vec2<float> uv{ (1.0f + std::atan2(normal.z, normal.x) / pi) * 0.5f,
+                          std::acos(normal.y) / pi };
 
-    return sphere_hit{t, {uv.x, uv.y}, {normal.x, normal.y, normal.z}};
+    return sphere_hit{ t, { uv.x, uv.y }, { normal.x, normal.y, normal.z } };
   };
 
   constexpr lbvh::size_type w = 1920;
@@ -140,9 +150,9 @@ int main() {
       auto x_ndc = (2 * (x + 0.5f) / float(w)) - 1;
       auto y_ndc = -(2 * (y + 0.5f) / float(h)) + 1;
 
-      lbvh::vec3<float> ray_dir{x_ndc * aspect_ratio * fov, y_ndc * fov, -1};
+      lbvh::vec3<float> ray_dir{ x_ndc * aspect_ratio * fov, y_ndc * fov, -1 };
 
-      lbvh::ray<float> r{{0, 0, 5}, ray_dir};
+      lbvh::ray<float> r{ { 0, 0, 5 }, ray_dir };
 
       auto isect = traverser(r, intersect_sphere);
       if (isect) {
@@ -150,7 +160,7 @@ int main() {
         image_buf[offset + 0] = channel_type(isect.info.uv[0] * 255);
         image_buf[offset + 1] = channel_type(isect.info.uv[1] * 255);
         image_buf[offset + 2] =
-            channel_type(1 - isect.info.uv[0] - isect.info.uv[1]) * 255;
+          channel_type(1 - isect.info.uv[0] - isect.info.uv[1]) * 255;
       }
     }
   }
