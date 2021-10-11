@@ -5,6 +5,7 @@ project(lbvh)
 option(LBVH_EXAMPLES "Whether or not to build the examples." OFF)
 option(LBVH_BENCH "Whether or not to build the benchmark." OFF)
 option(LBVH_TEST "Whether or not to build the test." OFF)
+option(LBVH_DEBUG "Whether or not to build the debug utilities." OFF)
 
 find_package(Threads REQUIRED)
 
@@ -45,6 +46,19 @@ if(LBVH_TESTS)
   enable_testing()
 
 endif(LBVH_TESTS)
+
+if(LBVH_DEBUG)
+
+  add_executable(lbvh_print_graph
+    debug/print_graph.cpp
+    third-party/tiny_obj_loader.h
+    third-party/tiny_obj_loader.cc)
+
+  target_link_libraries(lbvh_print_graph PRIVATE lbvh Threads::Threads)
+
+  set_target_properties(lbvh_print_graph PROPERTIES OUTPUT_NAME print_graph)
+
+endif(LBVH_DEBUG)
 
 if(LBVH_BENCH)
 

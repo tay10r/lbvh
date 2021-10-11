@@ -1018,13 +1018,13 @@ struct box_intersection final
   //! The minimum distance to intersection.
   scalar_type tmin = std::numeric_limits<scalar_type>::infinity();
   //! The maximum distance to intersection.
-  scalar_type tmax = 0;
+  scalar_type tmax = -std::numeric_limits<scalar_type>::infinity();
   //! Indicates if this is a valid intersection.
   inline operator bool() const noexcept
   {
     return (tmax >= max(scalar_type(0), tmin));
   }
-  //! Compares two box intersections by proximity.
+  //! Compares two box intersections by proximity to the intersected ray.
   //!
   //! \return True if this box intersection is closer than @p other.
   inline bool operator<(const box_intersection& other) const noexcept
